@@ -1253,6 +1253,7 @@ type LevelConfig = {
   bossParryWindow: number;
   // Optional themed creatures placed around the arena perimeter (scenery, outside the wall).
   creatures?: { kind: CreatureKind; count: number }[];
+  trees?: { kind: TreeKind; count: number };
 };
 
 type StageConfig = { name: string; levels: LevelConfig[] };
@@ -1418,6 +1419,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0x60c040,
       bossHp: 230, bossDmg: 48, bossWindup: 0.42, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.15,
       creatures: [{ kind: 'panda', count: 4 }],
+      trees: { kind: 'pine', count: 14 },
     },
     // 2. Savanna Plains — golden, dusty embers
     {
@@ -1433,6 +1435,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0xf0a040,
       bossHp: 250, bossDmg: 50, bossWindup: 0.40, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.145,
       creatures: [{ kind: 'lion', count: 3 }],
+      trees: { kind: 'broadleaf', count: 6 },
     },
     // 3. Misty Rainforest — dense fog, fireflies
     {
@@ -1448,6 +1451,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0x60c060,
       bossHp: 270, bossDmg: 52, bossWindup: 0.38, bossAttackEvery: [1.0, 1.4], bossParryWindow: 0.14,
       creatures: [{ kind: 'monkey', count: 5 }],
+      trees: { kind: 'broadleaf', count: 16 },
     },
     // 4. Tigers Den — orange jungle, embers
     {
@@ -1463,6 +1467,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0xff7030,
       bossHp: 290, bossDmg: 55, bossWindup: 0.36, bossAttackEvery: [1.0, 1.4], bossParryWindow: 0.135,
       creatures: [{ kind: 'tiger', count: 4 }],
+      trees: { kind: 'broadleaf', count: 14 },
     },
     // 5. Elephant Graveyard — bone pillars, ash + spirit motes
     {
@@ -1478,6 +1483,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0xe0c8d8,
       bossHp: 310, bossDmg: 58, bossWindup: 0.34, bossAttackEvery: [0.95, 1.35], bossParryWindow: 0.13,
       creatures: [{ kind: 'elephant', count: 3 }],
+      trees: { kind: 'dead', count: 12 },
     },
     // 6. Crocodile Swamp — murky green, bubbles
     {
@@ -1493,6 +1499,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0x80c040,
       bossHp: 335, bossDmg: 60, bossWindup: 0.32, bossAttackEvery: [0.9, 1.3], bossParryWindow: 0.125,
       creatures: [{ kind: 'crocodile', count: 5 }],
+      trees: { kind: 'palm', count: 12 },
     },
     // 7. Serpent Temple — ancient stone, snake-eye glow
     {
@@ -1508,6 +1515,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0x40ff60,
       bossHp: 360, bossDmg: 62, bossWindup: 0.30, bossAttackEvery: [0.9, 1.3], bossParryWindow: 0.12,
       creatures: [{ kind: 'serpent', count: 4 }],
+      trees: { kind: 'broadleaf', count: 12 },
     },
     // 8. Wolf Forest — moonlit pines, snow + mist
     {
@@ -1523,6 +1531,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0x80c0ff,
       bossHp: 385, bossDmg: 65, bossWindup: 0.28, bossAttackEvery: [0.85, 1.25], bossParryWindow: 0.115,
       creatures: [{ kind: 'wolf', count: 5 }],
+      trees: { kind: 'pine', count: 16 },
     },
     // 9. Phoenix Volcano — fierce fire, embers + ash
     {
@@ -1538,6 +1547,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0xff8030,
       bossHp: 415, bossDmg: 68, bossWindup: 0.26, bossAttackEvery: [0.85, 1.25], bossParryWindow: 0.11,
       creatures: [{ kind: 'phoenix', count: 2 }],
+      trees: { kind: 'dead', count: 10 },
     },
     // 10. Dragon Peak — final, mountain summit, lightning
     {
@@ -1553,6 +1563,7 @@ const STAGES: StageConfig[] = [{
       bossSashColor: 0xc0a0ff,
       bossHp: 450, bossDmg: 72, bossWindup: 0.24, bossAttackEvery: [0.8, 1.2], bossParryWindow: 0.10,
       creatures: [{ kind: 'dragon', count: 1 }],
+      trees: { kind: 'pine', count: 8 },
     },
   ],
 }];
@@ -1954,19 +1965,104 @@ function placeCreatures(kinds: { kind: CreatureKind; count: number }[]) {
     for (let i = 0; i < count; i++) {
       const angle = (idx / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
       idx++;
-      const r = 14 + Math.random() * 7;
+      // Closer to the wall so they're clearly visible from inside the arena.
+      const r = 12.5 + Math.random() * 4;
       const x = Math.cos(angle) * r;
       const z = Math.sin(angle) * r;
       const c = buildCreature(kind);
       c.position.set(x, 0, z);
-      // Face roughly toward arena center (with a little randomness).
       c.rotation.y = Math.atan2(-x, -z) + (Math.random() - 0.5) * 0.6;
-      // Random uniform scale for variety.
-      const s = 0.85 + Math.random() * 0.35;
+      // Bigger so they read at distance.
+      const s = 1.1 + Math.random() * 0.5;
       c.scale.setScalar(s);
       scene.add(c);
       placed.push(c);
     }
+  }
+  return placed;
+}
+
+// ---------- Procedural trees ----------
+type TreeKind = 'broadleaf' | 'pine' | 'dead' | 'palm';
+
+function buildTree(kind: TreeKind, height: number): THREE.Group {
+  const g = new THREE.Group();
+  const trunkColor = kind === 'dead' ? 0x6a4a30 : 0x3a2410;
+  const trunkMat = mat(trunkColor);
+
+  if (kind === 'broadleaf') {
+    const trunkH = height * 0.5;
+    const trunkR = 0.16 + (height - 4) * 0.04;
+    cyl(g, trunkR * 0.85, trunkR, trunkH, trunkMat, 0, trunkH / 2, 0);
+    const canopyTones = [0x3a8028, 0x4a8e34, 0x2a702c, 0x55a042];
+    const canopy = mat(canopyTones[Math.floor(Math.random() * canopyTones.length)]);
+    const canopyR = height * 0.34;
+    const canopyY = trunkH + canopyR * 0.6;
+    sph(g, canopyR, canopy, 0, canopyY, 0);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const r = canopyR * 0.6;
+      sph(g, canopyR * 0.65, canopy,
+        Math.cos(a) * r,
+        canopyY + (Math.random() - 0.5) * canopyR * 0.4,
+        Math.sin(a) * r);
+    }
+  } else if (kind === 'pine') {
+    const trunkH = height * 0.25;
+    cyl(g, 0.14, 0.20, trunkH, trunkMat, 0, trunkH / 2, 0);
+    const conifer = mat(0x2a4828);
+    let y = trunkH;
+    let r = height * 0.36;
+    const layerH = height * 0.20;
+    for (let i = 0; i < 5; i++) {
+      cone(g, r, layerH, conifer, 0, y + layerH / 2, 0, 10);
+      y += layerH * 0.55;
+      r *= 0.78;
+    }
+  } else if (kind === 'palm') {
+    const trunkH = height * 0.85;
+    const trunkR = 0.13 + (height - 4) * 0.03;
+    cyl(g, trunkR * 0.6, trunkR, trunkH, trunkMat, 0, trunkH / 2, 0);
+    const frond = mat(0x52a040);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      const f = box(g, 0.05, height * 0.45, 0.55, frond,
+        Math.cos(a) * 0.3, trunkH + height * 0.05, Math.sin(a) * 0.3);
+      f.rotation.x = -0.6;
+      f.rotation.z = Math.cos(a) * 0.4;
+      f.rotation.y = a;
+    }
+  } else {
+    // dead
+    const trunkH = height * 0.7;
+    const trunkR = 0.14 + (height - 4) * 0.04;
+    cyl(g, trunkR * 0.7, trunkR, trunkH, trunkMat, 0, trunkH / 2, 0);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.random() * 0.4;
+      const branch = box(g, 0.10, 0.7 + Math.random() * 0.5, 0.10, trunkMat,
+        Math.cos(a) * 0.25, trunkH * 0.85, Math.sin(a) * 0.25);
+      branch.rotation.z = Math.cos(a) * 0.7;
+      branch.rotation.x = Math.sin(a) * 0.7;
+      const sub = box(g, 0.07, 0.5, 0.07, trunkMat,
+        Math.cos(a) * 0.5, trunkH * 0.95, Math.sin(a) * 0.5);
+      sub.rotation.z = Math.cos(a + 1.2) * 0.8;
+      sub.rotation.x = Math.sin(a + 1.2) * 0.8;
+    }
+  }
+  return g;
+}
+
+function placeTrees(kind: TreeKind, count: number): THREE.Group[] {
+  const placed: THREE.Group[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+    const r = 13 + Math.random() * 10;
+    const h = 4.5 + Math.random() * 3;
+    const t = buildTree(kind, h);
+    t.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    t.rotation.y = Math.random() * Math.PI * 2;
+    scene.add(t);
+    placed.push(t);
   }
   return placed;
 }
@@ -2202,6 +2298,12 @@ function buildArena(cfg: LevelConfig) {
 
   // Stars.
   if (cfg.showStars) ensureStars();
+
+  // Trees ringing the arena (forest scenery).
+  if (cfg.trees) {
+    const placed = placeTrees(cfg.trees.kind, cfg.trees.count);
+    for (const t of placed) arenaMeshes.push(t);
+  }
 
   // Themed creatures placed around the arena perimeter (decorative, outside wall).
   if (cfg.creatures && cfg.creatures.length > 0) {

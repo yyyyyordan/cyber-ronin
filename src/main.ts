@@ -419,6 +419,282 @@ function buildCyberRonin(): Humanoid {
   };
 }
 
+// ============================================================
+// ---------- Wild Beast (Wilderness boss) ----------
+// ============================================================
+function buildWildBeast(): Humanoid {
+  const fur = new THREE.MeshStandardMaterial({
+    color: 0x4a3826, roughness: 0.95,
+  });
+  const furDark = new THREE.MeshStandardMaterial({
+    color: 0x281a10, roughness: 0.95,
+  });
+  const skullMat = new THREE.MeshStandardMaterial({
+    color: 0xd8c0a0, roughness: 0.7,
+  });
+  const fangMat = new THREE.MeshStandardMaterial({
+    color: 0xf0e8d0, roughness: 0.4,
+  });
+  const clawMat = new THREE.MeshStandardMaterial({
+    color: 0x141414, roughness: 0.4, metalness: 0.3,
+  });
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: 0x180000, emissive: 0xff2010, emissiveIntensity: 3.8,
+  });
+  const trophyMat = new THREE.MeshStandardMaterial({
+    color: 0x6a0808, roughness: 0.6, emissive: 0x600404, emissiveIntensity: 0.5,
+  });
+
+  const meshes: THREE.Mesh[] = [];
+  const emissiveAccents: THREE.Mesh[] = [];
+  function addM(parent: THREE.Group, geom: THREE.BufferGeometry, mt: THREE.Material, x = 0, y = 0, z = 0) {
+    const m = new THREE.Mesh(geom, mt);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    parent.add(m);
+    meshes.push(m);
+    return m;
+  }
+  function addA(parent: THREE.Group, geom: THREE.BufferGeometry, mt: THREE.Material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
+    const m = new THREE.Mesh(geom, mt);
+    m.position.set(x, y, z);
+    m.rotation.set(rx, ry, rz);
+    parent.add(m);
+    emissiveAccents.push(m);
+    return m;
+  }
+
+  const root = new THREE.Group();
+
+  // Pelvis (wide hips, hunched).
+  const pelvis = new THREE.Group();
+  pelvis.position.y = 0.95;
+  root.add(pelvis);
+  addM(pelvis, new THREE.BoxGeometry(0.65, 0.28, 0.42), fur.clone());
+  // Trophy belt — bone necklace at hips.
+  addM(pelvis, new THREE.BoxGeometry(0.70, 0.05, 0.46), skullMat.clone(), 0, -0.05, 0);
+  // Tail (cone extending down-back from rear of pelvis).
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.85, 6), furDark.clone());
+  tail.position.set(0, -0.05, -0.30);
+  tail.rotation.x = Math.PI * 0.6;
+  tail.castShadow = true;
+  pelvis.add(tail);
+  meshes.push(tail);
+
+  // Spine.
+  const spine = new THREE.Group();
+  spine.position.y = 0.13;
+  pelvis.add(spine);
+  // Chest (broad, shaggy).
+  addM(spine, new THREE.BoxGeometry(0.85, 0.65, 0.50), fur.clone(), 0, 0.35, 0);
+  // Hanging skull trophy on the chest.
+  const trophy = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 12), skullMat.clone());
+  trophy.position.set(0, 0.18, 0.27);
+  trophy.castShadow = true;
+  spine.add(trophy);
+  meshes.push(trophy);
+  // Blood-stained sash diagonal (the per-level emissive accent).
+  addA(spine, new THREE.BoxGeometry(0.75, 0.10, 0.06), trophyMat.clone(), 0, 0.40, 0.27, 0, 0, 0.18);
+
+  // Neck + head.
+  const neck = new THREE.Group();
+  neck.position.y = 0.62;
+  spine.add(neck);
+  addM(neck, new THREE.CylinderGeometry(0.10, 0.13, 0.16, 12), fur.clone(), 0, 0.08, 0);
+  // Wolf-like skull head: longer in Z (snout direction).
+  const faceMesh = addM(neck, new THREE.BoxGeometry(0.32, 0.30, 0.42), skullMat.clone(), 0, 0.30, 0.05);
+  // Snout extending forward.
+  addM(neck, new THREE.BoxGeometry(0.22, 0.20, 0.28), skullMat.clone(), 0, 0.24, 0.32);
+  // Glowing eyes (emissive accents — re-skin per level).
+  const lEye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 12), eyeMat.clone());
+  lEye.position.set(0.085, 0.34, 0.30);
+  neck.add(lEye); emissiveAccents.push(lEye);
+  const rEye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 12), eyeMat.clone());
+  rEye.position.set(-0.085, 0.34, 0.30);
+  neck.add(rEye); emissiveAccents.push(rEye);
+  // Fangs (visible at the snout edge).
+  for (const x of [-0.06, -0.02, 0.02, 0.06]) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.10, 4), fangMat.clone());
+    f.position.set(x, 0.18, 0.46);
+    f.rotation.x = Math.PI; // point downward
+    neck.add(f);
+    meshes.push(f);
+  }
+  // Horns (curled back from skull).
+  const hornMat = new THREE.MeshStandardMaterial({ color: 0x100808, roughness: 0.6, metalness: 0.3 });
+  const lHorn = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.40, 6), hornMat);
+  lHorn.position.set(0.13, 0.45, -0.05);
+  lHorn.rotation.set(0.4, 0, 0.5);
+  lHorn.castShadow = true;
+  neck.add(lHorn); meshes.push(lHorn);
+  const rHorn = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.40, 6), hornMat);
+  rHorn.position.set(-0.13, 0.45, -0.05);
+  rHorn.rotation.set(0.4, 0, -0.5);
+  rHorn.castShadow = true;
+  neck.add(rHorn); meshes.push(rHorn);
+  // Pointed wolf-ears.
+  const lEar = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 4), furDark.clone());
+  lEar.position.set(0.09, 0.50, 0.10);
+  lEar.castShadow = true;
+  neck.add(lEar); meshes.push(lEar);
+  const rEar = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 4), furDark.clone());
+  rEar.position.set(-0.09, 0.50, 0.10);
+  rEar.castShadow = true;
+  neck.add(rEar); meshes.push(rEar);
+
+  // Right arm (thick, fur-covered, clawed).
+  const rShoulder = new THREE.Group();
+  rShoulder.position.set(-0.40, 0.55, 0);
+  spine.add(rShoulder);
+  addM(rShoulder, new THREE.SphereGeometry(0.21, 12, 12), furDark.clone(), -0.05, 0.04, 0); // shoulder hump
+  addM(rShoulder, new THREE.CapsuleGeometry(0.115, 0.24, 6, 12), fur.clone(), 0, -0.18, 0);
+
+  const rElbow = new THREE.Group();
+  rElbow.position.y = -0.34;
+  rShoulder.add(rElbow);
+  addM(rElbow, new THREE.CapsuleGeometry(0.10, 0.24, 6, 12), fur.clone(), 0, -0.16, 0);
+
+  const rHand = new THREE.Group();
+  rHand.position.y = -0.32;
+  rElbow.add(rHand);
+  addM(rHand, new THREE.SphereGeometry(0.11, 12, 12), furDark.clone());
+  // 3 claws extending forward from the hand.
+  for (let i = 0; i < 3; i++) {
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.16, 4), clawMat);
+    c.position.set(-0.05 + i * 0.05, -0.05, 0.10);
+    c.rotation.x = Math.PI / 2;
+    c.castShadow = true;
+    rHand.add(c);
+    meshes.push(c);
+  }
+
+  // Left arm — mirrored.
+  const lShoulder = new THREE.Group();
+  lShoulder.position.set(0.40, 0.55, 0);
+  spine.add(lShoulder);
+  addM(lShoulder, new THREE.SphereGeometry(0.21, 12, 12), furDark.clone(), 0.05, 0.04, 0);
+  addM(lShoulder, new THREE.CapsuleGeometry(0.115, 0.24, 6, 12), fur.clone(), 0, -0.18, 0);
+
+  const lElbow = new THREE.Group();
+  lElbow.position.y = -0.34;
+  lShoulder.add(lElbow);
+  addM(lElbow, new THREE.CapsuleGeometry(0.10, 0.24, 6, 12), fur.clone(), 0, -0.16, 0);
+
+  const lHand = new THREE.Group();
+  lHand.position.y = -0.32;
+  lElbow.add(lHand);
+  addM(lHand, new THREE.SphereGeometry(0.11, 12, 12), furDark.clone());
+  for (let i = 0; i < 3; i++) {
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.16, 4), clawMat);
+    c.position.set(-0.05 + i * 0.05, -0.05, 0.10);
+    c.rotation.x = Math.PI / 2;
+    c.castShadow = true;
+    lHand.add(c);
+    meshes.push(c);
+  }
+
+  // Right leg (digitigrade-ish, thick).
+  const rHip = new THREE.Group();
+  rHip.position.set(-0.18, -0.07, 0);
+  pelvis.add(rHip);
+  addM(rHip, new THREE.CapsuleGeometry(0.13, 0.30, 6, 12), fur.clone(), 0, -0.22, 0);
+
+  const rKnee = new THREE.Group();
+  rKnee.position.y = -0.45;
+  rHip.add(rKnee);
+  addM(rKnee, new THREE.CapsuleGeometry(0.11, 0.30, 6, 12), fur.clone(), 0, -0.22, 0);
+
+  const rFoot = new THREE.Group();
+  rFoot.position.y = -0.45;
+  rKnee.add(rFoot);
+  addM(rFoot, new THREE.BoxGeometry(0.18, 0.10, 0.32), furDark.clone(), 0, 0, 0.07);
+
+  // Left leg — mirrored.
+  const lHip = new THREE.Group();
+  lHip.position.set(0.18, -0.07, 0);
+  pelvis.add(lHip);
+  addM(lHip, new THREE.CapsuleGeometry(0.13, 0.30, 6, 12), fur.clone(), 0, -0.22, 0);
+
+  const lKnee = new THREE.Group();
+  lKnee.position.y = -0.45;
+  lHip.add(lKnee);
+  addM(lKnee, new THREE.CapsuleGeometry(0.11, 0.30, 6, 12), fur.clone(), 0, -0.22, 0);
+
+  const lFoot = new THREE.Group();
+  lFoot.position.y = -0.45;
+  lKnee.add(lFoot);
+  addM(lFoot, new THREE.BoxGeometry(0.18, 0.10, 0.32), furDark.clone(), 0, 0, 0.07);
+
+  return {
+    root, pelvis, spine, neck,
+    rShoulder, rElbow, rHand, lShoulder, lElbow,
+    rHip, rKnee, lHip, lKnee,
+    meshes, emissiveAccents, faceMesh,
+  };
+}
+
+// ---------- Bloody Leg weapon (Wilderness boss carries this instead of a sword) ----------
+function buildBloodyLeg() {
+  const group = new THREE.Group();
+  const fleshMat = new THREE.MeshStandardMaterial({
+    color: 0x8a4030, roughness: 0.85,
+    emissive: 0x301010, emissiveIntensity: 0.25,
+  });
+  const boneMat = new THREE.MeshStandardMaterial({
+    color: 0xe8e0d0, roughness: 0.6,
+  });
+  const bloodMat = new THREE.MeshStandardMaterial({
+    color: 0x6a0606, roughness: 0.4,
+    emissive: 0xff1010, emissiveIntensity: 0.55,
+  });
+
+  // Held at the foot (down-end). Leg extends UPWARD like a club.
+  // Foot
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.12, 0.34), fleshMat);
+  foot.position.set(0, 0.06, 0.06);
+  foot.castShadow = true;
+  // Ankle
+  const ankle = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 10), fleshMat);
+  ankle.position.y = 0.14;
+  // Calf
+  const calf = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.11, 0.40, 12), fleshMat);
+  calf.position.y = 0.36;
+  calf.castShadow = true;
+  // Knee
+  const knee = new THREE.Mesh(new THREE.SphereGeometry(0.135, 12, 12), fleshMat);
+  knee.position.y = 0.60;
+  // Thigh — wider, the "blade" of the weapon
+  const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.50, 12), fleshMat);
+  thigh.position.y = 0.86;
+  thigh.castShadow = true;
+  // Severed end (bloody flesh stump)
+  const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.18, 0.06, 12), bloodMat);
+  stump.position.y = 1.13;
+  // Visible bone protruding from cut
+  const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.12, 8), boneMat);
+  bone.position.y = 1.20;
+  // Blood drips trailing down
+  const drip1 = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), bloodMat);
+  drip1.position.set(0.10, 0.95, 0.05);
+  drip1.scale.y = 1.6;
+  const drip2 = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 6), bloodMat);
+  drip2.position.set(-0.08, 0.75, 0.0);
+  drip2.scale.y = 1.4;
+  const drip3 = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), bloodMat);
+  drip3.position.set(0.05, 0.55, -0.03);
+  drip3.scale.y = 1.5;
+
+  group.add(foot, ankle, calf, knee, thigh, stump, bone, drip1, drip2, drip3);
+
+  // Conform to the same shape that buildSword returns so the boss combat code works as-is.
+  return {
+    group,
+    blade: thigh as THREE.Mesh,        // raycast / parry sparks emit from the thigh (top of weapon)
+    bladeMat: fleshMat,                // emissive on this material drives the windup glow
+    bladeLen: 1.2,
+  };
+}
+
 // ---------- Pose system ----------
 type Triple = readonly [number, number, number];
 type Pose = {
@@ -517,33 +793,33 @@ const POSE_DEATH: Pose = pose({
 // ---------- Boss instance ----------
 type BossState = 'idle' | 'windup' | 'strike' | 'recover' | 'staggered' | 'dead';
 
-const bossH = buildCyberRonin();
+let bossH: Humanoid = buildCyberRonin();
 bossH.root.position.set(0, 0, 0);
 scene.add(bossH.root);
 applyPose(bossH, POSE_IDLE);
 
-const bossSword = buildSword({
+type BossWeapon = { group: THREE.Group; blade: THREE.Mesh; bladeMat: THREE.MeshStandardMaterial; bladeLen: number };
+let bossWeapon: BossWeapon = buildSword({
   gripColor: 0x18120e, bladeColor: 0x002010,
   bladeLen: 1.10, bladeW: 0.075,
   edgeGlow: 0x00ff60, curved: true,
-});
-// Base cosmic-green glow on the blade itself (animation modulates from this baseline).
+}) as BossWeapon;
 {
-  const m = bossSword.bladeMat;
+  const m = bossWeapon.bladeMat;
   m.emissive = new THREE.Color(0x00b048);
   m.emissiveIntensity = 1.5;
   m.metalness = 0.4;
   m.roughness = 0.5;
   m.needsUpdate = true;
 }
-bossSword.group.position.set(0, -0.05, 0);
-bossH.rHand.add(bossSword.group);
+bossWeapon.group.position.set(0, -0.05, 0);
+bossH.rHand.add(bossWeapon.group);
 
 const boss = {
   humanoid: bossH,
   parts: bossH.meshes,
-  swordBlade: bossSword.blade,
-  swordBladeMat: bossSword.bladeMat,
+  swordBlade: bossWeapon.blade,
+  swordBladeMat: bossWeapon.bladeMat,
   hp: 100, maxHp: 100,
   posture: 0, maxPosture: 100,
   state: 'idle' as BossState,
@@ -554,6 +830,61 @@ const boss = {
   hitFlash: 0,
   staggerCritReady: false,
 };
+
+// Track which stage the current boss model belongs to, so we only rebuild on stage change.
+let currentBossStageIdx = 0;
+function disposeGroup(g: THREE.Object3D) {
+  g.traverse((c) => {
+    if (c instanceof THREE.Mesh) {
+      c.geometry.dispose();
+      const m: any = c.material;
+      if (m) {
+        if (Array.isArray(m)) m.forEach((mm: any) => mm.dispose());
+        else m.dispose();
+      }
+    }
+  });
+}
+function rebuildBoss(stageIdx: number) {
+  // Remove current model + weapon from scene + dispose.
+  scene.remove(bossH.root);
+  disposeGroup(bossH.root);
+
+  if (stageIdx === 1) {
+    // Wilderness — wild beast wielding a bloody leg.
+    bossH = buildWildBeast();
+    bossWeapon = buildBloodyLeg();
+    bossWeapon.group.position.set(0, 0, 0);
+    bossWeapon.group.rotation.set(-0.15, 0, 0);   // angle the leg slightly forward in hand
+    bossH.rHand.add(bossWeapon.group);
+  } else {
+    // Cosmos (and default) — cyber-ronin with the green sword.
+    bossH = buildCyberRonin();
+    bossWeapon = buildSword({
+      gripColor: 0x18120e, bladeColor: 0x002010,
+      bladeLen: 1.10, bladeW: 0.075,
+      edgeGlow: 0x00ff60, curved: true,
+    }) as BossWeapon;
+    const m = bossWeapon.bladeMat;
+    m.emissive = new THREE.Color(0x00b048);
+    m.emissiveIntensity = 1.5;
+    m.metalness = 0.4;
+    m.roughness = 0.5;
+    m.needsUpdate = true;
+    bossWeapon.group.position.set(0, -0.05, 0);
+    bossH.rHand.add(bossWeapon.group);
+  }
+  bossH.root.position.set(0, 0, 0);
+  scene.add(bossH.root);
+  applyPose(bossH, POSE_IDLE);
+
+  // Rebind the runtime boss references.
+  boss.humanoid = bossH;
+  boss.parts = bossH.meshes;
+  boss.swordBlade = bossWeapon.blade;
+  boss.swordBladeMat = bossWeapon.bladeMat;
+  currentBossStageIdx = stageIdx;
+}
 let poseFrom: Pose = POSE_IDLE;
 function transitionBoss(next: BossState) {
   poseFrom = snapshotPose(bossH);
@@ -2424,6 +2755,11 @@ function applyLevel(idx: number) {
   currentLevel = idx;
   saveLevel();
   setHUDForLevel();
+  // Swap boss model when crossing stage boundaries.
+  const newStageIdx = stageOfLevel(idx).stageIdx;
+  if (newStageIdx !== currentBossStageIdx) {
+    rebuildBoss(newStageIdx);
+  }
   buildArena(LEVELS[idx]);
   resetBossForLevel();
 }

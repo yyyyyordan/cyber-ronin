@@ -579,6 +579,14 @@ function updateBossLocomotion(dt: number): boolean {
   const uz = dz / dist;
   bossH.root.position.x += ux * BOSS_WALK_SPEED * dt;
   bossH.root.position.z += uz * BOSS_WALK_SPEED * dt;
+  // Clamp boss to arena radius too.
+  const bx = bossH.root.position.x, bz = bossH.root.position.z;
+  const bd = Math.hypot(bx, bz);
+  if (bd > ARENA_R - 0.5) {
+    const f = (ARENA_R - 0.5) / bd;
+    bossH.root.position.x = bx * f;
+    bossH.root.position.z = bz * f;
+  }
   bossWalkPhase += dt * 5.5;
   return true;
 }
@@ -1409,9 +1417,15 @@ function disposeArena() {
   arenaMeshes = [];
 }
 
+// Playable arena is a circle of this radius — both player and boss are clamped inside.
+const ARENA_R = 11;
+const WALL_R = 11.5;
 const PILLAR_SPECS: Array<[number, number, number]> = [
-  [-9, -6, 7], [9, -6, 5.5], [-15, 8, 8.5], [15, 8, 6.5],
-  [-4, -22, 10], [4, -22, 9], [-22, -2, 6], [22, -2, 7.5],
+  // All pillars sit OUTSIDE the wall as background scenery.
+  [-15, -10, 7], [15, -10, 5.5],
+  [-19, 12, 8.5], [19, 12, 6.5],
+  [-6, -26, 10], [6, -26, 9],
+  [-26, -4, 6], [26, -4, 7.5],
 ];
 
 function buildArena(cfg: LevelConfig) {
@@ -1504,9 +1518,9 @@ function buildArena(cfg: LevelConfig) {
     }
   }
 
-  // Platform.
+  // Platform (now wider — radius 11).
   const platform = new THREE.Mesh(
-    new THREE.CylinderGeometry(7, 7.4, 0.3, 48),
+    new THREE.CylinderGeometry(ARENA_R, ARENA_R + 0.4, 0.3, 64),
     new THREE.MeshStandardMaterial({
       color: cfg.platformColor, roughness: 0.4, metalness: 0.5,
     })
@@ -1516,10 +1530,10 @@ function buildArena(cfg: LevelConfig) {
   platform.castShadow = true;
   scene.add(platform);
   arenaMeshes.push(platform);
-  // Platform glow ring.
+  // Platform glow ring at the new outer edge.
   if (cfg.platformRing !== null) {
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(7.05, 0.06, 12, 96),
+      new THREE.TorusGeometry(ARENA_R + 0.05, 0.06, 12, 128),
       new THREE.MeshStandardMaterial({
         color: 0x100002, roughness: 0.5,
         emissive: cfg.platformRing, emissiveIntensity: 3.0,
@@ -1529,6 +1543,37 @@ function buildArena(cfg: LevelConfig) {
     ring.rotation.x = Math.PI / 2;
     scene.add(ring);
     arenaMeshes.push(ring);
+  }
+
+  // Boundary wall — chest-high cylinder around the play area.
+  const wallH = 1.25;
+  const wall = new THREE.Mesh(
+    new THREE.CylinderGeometry(WALL_R, WALL_R, wallH, 64, 1, true),
+    new THREE.MeshStandardMaterial({
+      color: cfg.pillarColor, roughness: 0.45, metalness: 0.5,
+      side: THREE.DoubleSide,
+    })
+  );
+  wall.position.y = wallH / 2;
+  wall.receiveShadow = true;
+  wall.castShadow = true;
+  scene.add(wall);
+  arenaMeshes.push(wall);
+  // Glowing top edge in seam-themed arenas.
+  if (cfg.pillarSeam) {
+    const topRing = new THREE.Mesh(
+      new THREE.TorusGeometry(WALL_R, 0.05, 8, 128),
+      new THREE.MeshStandardMaterial({
+        color: cfg.pillarSeam.color,
+        emissive: cfg.pillarSeam.emissive,
+        emissiveIntensity: cfg.pillarSeam.intensity,
+        roughness: 0.5,
+      })
+    );
+    topRing.rotation.x = Math.PI / 2;
+    topRing.position.y = wallH;
+    scene.add(topRing);
+    arenaMeshes.push(topRing);
   }
 
   // Skyline.
@@ -1782,6 +1827,20 @@ function updateMovement(dt: number) {
   }
   controls.moveRight(velocity.x * dt);
   controls.moveForward(-velocity.z * dt);
+  // Clamp player to arena radius — kill outward velocity when bumping the wall.
+  const px = camera.position.x, pz = camera.position.z;
+  const pd = Math.hypot(px, pz);
+  if (pd > ARENA_R) {
+    const f = ARENA_R / pd;
+    camera.position.x = px * f;
+    camera.position.z = pz * f;
+    const ux = px / pd, uz = pz / pd;
+    const radial = velocity.x * ux + velocity.z * uz;
+    if (radial > 0) {
+      velocity.x -= radial * ux;
+      velocity.z -= radial * uz;
+    }
+  }
   bobPhase += speed * dt * 1.6;
 }
 

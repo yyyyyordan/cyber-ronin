@@ -832,6 +832,41 @@ function spawnAsh() {
     (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2
   ));
 }
+function spawnLeaf() {
+  const geom = new THREE.PlaneGeometry(0.12, 0.07);
+  const greens = [0x60a040, 0x88b850, 0xa8a040, 0x70903a];
+  const mat = new THREE.MeshBasicMaterial({
+    color: greens[Math.floor(Math.random() * greens.length)],
+    transparent: true, opacity: 0.95, side: THREE.DoubleSide, fog: false,
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.position.set(
+    (Math.random() - 0.5) * PLAYER_AREA * 2,
+    18 + Math.random() * 12,
+    (Math.random() - 0.5) * PLAYER_AREA * 2
+  );
+  pushAtmo(mesh, new THREE.Vector3(
+    (Math.random() - 0.5) * 1.6, -1.5 - Math.random() * 0.6, (Math.random() - 0.5) * 1.6
+  ), 9 + Math.random() * 3, new THREE.Vector3(
+    (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5
+  ));
+}
+function spawnFirefly() {
+  const geom = new THREE.SphereGeometry(0.06, 8, 8);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xfff080, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.position.set(
+    (Math.random() - 0.5) * PLAYER_AREA,
+    0.6 + Math.random() * 4,
+    (Math.random() - 0.5) * PLAYER_AREA
+  );
+  pushAtmo(mesh, new THREE.Vector3(
+    (Math.random() - 0.5) * 0.4, (Math.random() - 0.3) * 0.6, (Math.random() - 0.5) * 0.4
+  ), 7 + Math.random() * 5);
+}
 
 // ---------- Cyber atmosphere: stars + ships + rockets + meteors + puffs ----------
 const cyberObjects: { mesh: THREE.Object3D; vel: THREE.Vector3; life: number; maxLife: number; trailEmit?: number; kind: 'ship' | 'rocket' | 'meteor' }[] = [];
@@ -1052,9 +1087,10 @@ function clearCelestials() {
 }
 
 // ---------- Atmosphere spawn timing per current level ----------
-type AtmoType = 'cyber' | 'snow' | 'petals' | 'embers' | 'rain' | 'bubbles' | 'glowMotes' | 'ash' | 'celestials';
+type AtmoType = 'cyber' | 'snow' | 'petals' | 'embers' | 'rain' | 'bubbles' | 'glowMotes' | 'ash' | 'celestials' | 'leaves' | 'fireflies';
 let nextShipAt = 3, nextRocketAt = 6, nextMeteorAt = 4;
 let snowAcc = 0, petalAcc = 0, emberAcc = 0, rainAcc = 0, bubbleAcc = 0, glowAcc = 0, ashAcc = 0;
+let leafAcc = 0, fireflyAcc = 0;
 function updateAtmosphereForLevel(dt: number, t: number, atmos: AtmoType[]) {
   // Cyber objects (ships/rockets/meteors)
   if (atmos.includes('cyber')) {
@@ -1108,6 +1144,8 @@ function updateAtmosphereForLevel(dt: number, t: number, atmos: AtmoType[]) {
   if (atmos.includes('bubbles')) bubbleAcc = tick(bubbleAcc, 9, spawnBubble);
   if (atmos.includes('glowMotes')) glowAcc = tick(glowAcc, 6, spawnGlowMote);
   if (atmos.includes('ash')) ashAcc = tick(ashAcc, 22, spawnAsh);
+  if (atmos.includes('leaves')) leafAcc = tick(leafAcc, 14, spawnLeaf);
+  if (atmos.includes('fireflies')) fireflyAcc = tick(fireflyAcc, 8, spawnFirefly);
 }
 
 // ---------- Controls & Input ----------
@@ -1361,6 +1399,150 @@ const STAGES: StageConfig[] = [{
     bossHp: 220, bossDmg: 50, bossWindup: 0.40, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.15,
   },
   ],
+}, {
+  name: 'Legendary Wilderness',
+  levels: [
+    // 1. Bamboo Grove — peaceful, leaves drifting
+    {
+      name: 'Bamboo Grove',
+      skyColor: 0xc8e0c0, fogColor: 0xc8e0c0, fogNear: 30, fogFar: 100,
+      groundColor: 0x4a6a3a, groundGrid: null,
+      pillarColor: 0x88c060, pillarSeam: null, pillarShape: 'cone',
+      platformColor: 0x6a4a30, platformRing: null,
+      sunColor: 0xfff5d0, sunIntensity: 2.6,
+      rim: { color: 0x88c060, intensity: 0.6 },
+      hemi: { sky: 0xc8e0c0, ground: 0x3a5028, intensity: 0.65 },
+      atmosphere: ['leaves'], showStars: false, showSkyline: false,
+      bossSashColor: 0x60c040,
+      bossHp: 230, bossDmg: 48, bossWindup: 0.42, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.15,
+    },
+    // 2. Savanna Plains — golden, dusty embers
+    {
+      name: 'Savanna Plains',
+      skyColor: 0xf0c878, fogColor: 0xd8b888, fogNear: 28, fogFar: 95,
+      groundColor: 0xc8a050, groundGrid: null,
+      pillarColor: 0x8a6038, pillarSeam: null, pillarShape: 'box',
+      platformColor: 0xa8854a, platformRing: null,
+      sunColor: 0xffe0a0, sunIntensity: 3.0,
+      rim: { color: 0xff8040, intensity: 0.7 },
+      hemi: { sky: 0xf0c878, ground: 0x6a4828, intensity: 0.7 },
+      atmosphere: ['embers'], showStars: false, showSkyline: false,
+      bossSashColor: 0xf0a040,
+      bossHp: 250, bossDmg: 50, bossWindup: 0.40, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.145,
+    },
+    // 3. Misty Rainforest — dense fog, fireflies
+    {
+      name: 'Misty Rainforest',
+      skyColor: 0x4a6a5a, fogColor: 0x607060, fogNear: 14, fogFar: 55,
+      groundColor: 0x2a3a28, groundGrid: null,
+      pillarColor: 0x3a4a30, pillarSeam: { color: 0x102014, emissive: 0x60a040, intensity: 1.6 }, pillarShape: 'box',
+      platformColor: 0x2a2018, platformRing: 0x60a040,
+      sunColor: 0xc0d0a0, sunIntensity: 1.8,
+      rim: { color: 0x60a040, intensity: 0.8 },
+      hemi: { sky: 0x4a6a5a, ground: 0x1a2818, intensity: 0.6 },
+      atmosphere: ['fireflies', 'leaves'], showStars: false, showSkyline: false,
+      bossSashColor: 0x60c060,
+      bossHp: 270, bossDmg: 52, bossWindup: 0.38, bossAttackEvery: [1.0, 1.4], bossParryWindow: 0.14,
+    },
+    // 4. Tigers Den — orange jungle, embers
+    {
+      name: "Tiger's Den",
+      skyColor: 0x8a5028, fogColor: 0x8a5028, fogNear: 18, fogFar: 70,
+      groundColor: 0x6a3818, groundGrid: { line: 0x3a1808, emissive: 0x602008, lineW: 6 },
+      pillarColor: 0x8a4818, pillarSeam: { color: 0x301008, emissive: 0xff5020, intensity: 1.6 }, pillarShape: 'box',
+      platformColor: 0x4a2818, platformRing: 0xff5020,
+      sunColor: 0xffa860, sunIntensity: 2.0,
+      rim: { color: 0xff5020, intensity: 0.9 },
+      hemi: { sky: 0x6a3010, ground: 0x301008, intensity: 0.55 },
+      atmosphere: ['embers'], showStars: false, showSkyline: false,
+      bossSashColor: 0xff7030,
+      bossHp: 290, bossDmg: 55, bossWindup: 0.36, bossAttackEvery: [1.0, 1.4], bossParryWindow: 0.135,
+    },
+    // 5. Elephant Graveyard — bone pillars, ash + spirit motes
+    {
+      name: 'Elephant Graveyard',
+      skyColor: 0x6a4060, fogColor: 0x806068, fogNear: 18, fogFar: 70,
+      groundColor: 0xa89890, groundGrid: null,
+      pillarColor: 0xe8d8c0, pillarSeam: null, pillarShape: 'cone',
+      platformColor: 0x8a7060, platformRing: null,
+      sunColor: 0xc8a0c0, sunIntensity: 1.6,
+      rim: { color: 0xc880c8, intensity: 0.7 },
+      hemi: { sky: 0x6a4060, ground: 0x4a3848, intensity: 0.5 },
+      atmosphere: ['ash', 'glowMotes'], showStars: false, showSkyline: false,
+      bossSashColor: 0xe0c8d8,
+      bossHp: 310, bossDmg: 58, bossWindup: 0.34, bossAttackEvery: [0.95, 1.35], bossParryWindow: 0.13,
+    },
+    // 6. Crocodile Swamp — murky green, bubbles
+    {
+      name: 'Crocodile Swamp',
+      skyColor: 0x4a5828, fogColor: 0x3a4828, fogNear: 12, fogFar: 50,
+      groundColor: 0x2a3818, groundGrid: null,
+      pillarColor: 0x4a5838, pillarSeam: { color: 0x102810, emissive: 0x80a040, intensity: 1.4 }, pillarShape: 'box',
+      platformColor: 0x2a3018, platformRing: 0x80a040,
+      sunColor: 0xa0b078, sunIntensity: 1.6,
+      rim: { color: 0x80a040, intensity: 0.7 },
+      hemi: { sky: 0x4a5828, ground: 0x2a3818, intensity: 0.6 },
+      atmosphere: ['bubbles', 'fireflies'], showStars: false, showSkyline: false,
+      bossSashColor: 0x80c040,
+      bossHp: 335, bossDmg: 60, bossWindup: 0.32, bossAttackEvery: [0.9, 1.3], bossParryWindow: 0.125,
+    },
+    // 7. Serpent Temple — ancient stone, snake-eye glow
+    {
+      name: 'Serpent Temple',
+      skyColor: 0x183a4a, fogColor: 0x204858, fogNear: 16, fogFar: 65,
+      groundColor: 0x484038, groundGrid: null,
+      pillarColor: 0x383028, pillarSeam: { color: 0x182810, emissive: 0x40ff80, intensity: 2.2 }, pillarShape: 'box',
+      platformColor: 0x383028, platformRing: 0x40ff80,
+      sunColor: 0x80c0a0, sunIntensity: 1.5,
+      rim: { color: 0x40ff80, intensity: 0.9 },
+      hemi: { sky: 0x183a4a, ground: 0x202018, intensity: 0.55 },
+      atmosphere: ['glowMotes', 'fireflies'], showStars: false, showSkyline: false,
+      bossSashColor: 0x40ff60,
+      bossHp: 360, bossDmg: 62, bossWindup: 0.30, bossAttackEvery: [0.9, 1.3], bossParryWindow: 0.12,
+    },
+    // 8. Wolf Forest — moonlit pines, snow + mist
+    {
+      name: 'Wolf Forest',
+      skyColor: 0x1a2848, fogColor: 0x2a3858, fogNear: 14, fogFar: 60,
+      groundColor: 0x1a2818, groundGrid: null,
+      pillarColor: 0x202830, pillarSeam: { color: 0x081020, emissive: 0x80c0ff, intensity: 1.8 }, pillarShape: 'cone',
+      platformColor: 0x202838, platformRing: 0x80c0ff,
+      sunColor: 0xc0d0ff, sunIntensity: 1.2,
+      rim: { color: 0x80c0ff, intensity: 1.0 },
+      hemi: { sky: 0x1a2848, ground: 0x101820, intensity: 0.5 },
+      atmosphere: ['snow'], showStars: true, showSkyline: false,
+      bossSashColor: 0x80c0ff,
+      bossHp: 385, bossDmg: 65, bossWindup: 0.28, bossAttackEvery: [0.85, 1.25], bossParryWindow: 0.115,
+    },
+    // 9. Phoenix Volcano — fierce fire, embers + ash
+    {
+      name: 'Phoenix Volcano',
+      skyColor: 0x4a1808, fogColor: 0x6a2010, fogNear: 12, fogFar: 50,
+      groundColor: 0x281008, groundGrid: { line: 0xff5020, emissive: 0xff5020, lineW: 5 },
+      pillarColor: 0x180808, pillarSeam: { color: 0x180400, emissive: 0xff8030, intensity: 2.6 }, pillarShape: 'box',
+      platformColor: 0x381810, platformRing: 0xff8030,
+      sunColor: 0xff6030, sunIntensity: 1.4,
+      rim: { color: 0xff4020, intensity: 1.4 },
+      hemi: { sky: 0x4a1808, ground: 0x6a2010, intensity: 0.6 },
+      atmosphere: ['embers', 'ash'], showStars: false, showSkyline: false,
+      bossSashColor: 0xff8030,
+      bossHp: 415, bossDmg: 68, bossWindup: 0.26, bossAttackEvery: [0.85, 1.25], bossParryWindow: 0.11,
+    },
+    // 10. Dragon Peak — final, mountain summit, lightning
+    {
+      name: 'Dragon Peak',
+      skyColor: 0x383040, fogColor: 0x484058, fogNear: 14, fogFar: 55,
+      groundColor: 0x2a2028, groundGrid: { line: 0xc0d0ff, emissive: 0x6080ff, lineW: 4 },
+      pillarColor: 0x382838, pillarSeam: { color: 0x180828, emissive: 0xc0a0ff, intensity: 2.8 }, pillarShape: 'crystal',
+      platformColor: 0x282028, platformRing: 0xc0a0ff,
+      sunColor: 0xc0c0ff, sunIntensity: 1.4,
+      rim: { color: 0x8060ff, intensity: 1.3 },
+      hemi: { sky: 0x383040, ground: 0x201828, intensity: 0.55 },
+      atmosphere: ['snow', 'glowMotes'], showStars: true, showSkyline: false,
+      bossSashColor: 0xc0a0ff,
+      bossHp: 450, bossDmg: 72, bossWindup: 0.24, bossAttackEvery: [0.8, 1.2], bossParryWindow: 0.10,
+    },
+  ],
 }];
 
 // Flat list of all levels across all stages. Existing currentLevel is the global index here.
@@ -1461,6 +1643,7 @@ function buildArena(cfg: LevelConfig) {
   // Reset atmosphere timers so transitions don't flood.
   nextShipAt = 3; nextRocketAt = 6; nextMeteorAt = 4;
   snowAcc = petalAcc = emberAcc = rainAcc = bubbleAcc = glowAcc = ashAcc = 0;
+  leafAcc = fireflyAcc = 0;
 
   // Sky / fog.
   scene.background = new THREE.Color(cfg.skyColor);

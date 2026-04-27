@@ -1,0 +1,383 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0a1418;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: #f4f1ea;
+  /* iOS-friendly: kill rubber-band scroll, pinch-zoom, double-tap-zoom, text selection. */
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+canvas {
+  display: block;
+}
+
+#prompt {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(10, 20, 24, 0.55), rgba(10, 20, 24, 0.92));
+  z-index: 10;
+  cursor: pointer;
+  letter-spacing: 0.18em;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+  transition: opacity 0.25s ease;
+}
+
+#prompt.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(244, 241, 234, 0.6);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+  mix-blend-mode: difference;
+}
+
+/* HUD */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+#boss-hud {
+  position: absolute;
+  top: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 60vw);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+#boss-hud .label {
+  letter-spacing: 0.32em;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(244, 241, 234, 0.85);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+  margin-bottom: 4px;
+}
+
+#player-hud {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, 50vw);
+}
+
+.bar {
+  width: 100%;
+  height: 10px;
+  background: rgba(8, 14, 18, 0.55);
+  border: 1px solid rgba(244, 241, 234, 0.25);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  position: relative;
+}
+
+.bar.boss-posture {
+  height: 5px;
+  width: 80%;
+}
+
+.bar .fill {
+  height: 100%;
+  width: 100%;
+  transition: width 0.12s ease-out;
+}
+
+.bar.boss-hp .fill {
+  background: linear-gradient(180deg, #e8556a 0%, #a82038 100%);
+  box-shadow: 0 0 12px rgba(232, 85, 106, 0.45);
+}
+
+.bar.boss-posture .fill {
+  background: linear-gradient(180deg, #ffe9a8 0%, #d4a040 100%);
+  box-shadow: 0 0 10px rgba(255, 233, 168, 0.55);
+}
+
+.bar.player-hp .fill {
+  background: linear-gradient(180deg, #f4f1ea 0%, #b5acA0 100%);
+  box-shadow: 0 0 10px rgba(244, 241, 234, 0.35);
+}
+
+#result {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(8, 14, 18, 0.55);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85);
+  transition: opacity 0.3s ease;
+}
+
+#result.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.result-title {
+  font-size: 64px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+}
+
+.result-sub {
+  letter-spacing: 0.32em;
+  font-size: 12px;
+  color: rgba(244, 241, 234, 0.65);
+}
+
+#vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 180px 40px rgba(200, 30, 50, 0.85);
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+/* ---- Main menu (level select) ---- */
+#menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  pointer-events: auto;
+}
+#menu-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.36em;
+  color: #f4f1ea;
+  text-shadow: 0 2px 24px rgba(255, 30, 50, 0.45), 0 1px 8px rgba(0, 0, 0, 0.7);
+}
+#menu-sub {
+  font-size: 11px;
+  letter-spacing: 0.30em;
+  color: rgba(244, 241, 234, 0.55);
+  text-transform: uppercase;
+  margin-top: -10px;
+}
+#level-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-top: 6px;
+}
+.level-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 14px;
+  background: rgba(20, 24, 32, 0.65);
+  border: 1px solid rgba(255, 100, 110, 0.25);
+  color: #f4f1ea;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 110px;
+}
+.level-btn:hover {
+  background: rgba(255, 30, 50, 0.18);
+  border-color: rgba(255, 100, 110, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 30, 50, 0.18);
+}
+.level-btn.current {
+  background: rgba(255, 30, 50, 0.28);
+  border-color: rgba(255, 100, 110, 1);
+  box-shadow: 0 0 16px rgba(255, 30, 50, 0.55);
+}
+.lvl-num {
+  font-size: 22px;
+  font-weight: 600;
+  color: #ff5566;
+  letter-spacing: 0;
+}
+.lvl-name {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: rgba(244, 241, 234, 0.85);
+}
+#menu-footer {
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: rgba(244, 241, 234, 0.45);
+  text-transform: uppercase;
+  margin-top: 14px;
+  text-align: center;
+  line-height: 1.6;
+}
+#menu-footer .keys {
+  color: rgba(244, 241, 234, 0.7);
+}
+
+/* ---- Sound on/off button (top-right corner) ---- */
+#sound-btn {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  pointer-events: auto;
+  background: rgba(20, 24, 32, 0.7);
+  border: 1px solid rgba(255, 100, 110, 0.3);
+  color: #f4f1ea;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-family: inherit;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  z-index: 11;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+#sound-btn:hover {
+  background: rgba(255, 30, 50, 0.20);
+  border-color: rgba(255, 100, 110, 0.75);
+}
+#sound-btn.muted {
+  opacity: 0.5;
+  border-color: rgba(244, 241, 234, 0.25);
+}
+
+/* ---- Menu button (top-left, also works on desktop) ---- */
+#menu-btn {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  pointer-events: auto;
+  background: rgba(20, 24, 32, 0.7);
+  border: 1px solid rgba(255, 100, 110, 0.3);
+  color: #f4f1ea;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 11;
+  font-family: inherit;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+#menu-btn:hover {
+  background: rgba(255, 30, 50, 0.20);
+  border-color: rgba(255, 100, 110, 0.75);
+}
+
+/* ---- Touch controls ---- */
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+  display: none;
+}
+#touch-controls.active { display: block; }
+
+#joystick-base {
+  position: absolute;
+  bottom: 32px;
+  left: 32px;
+  width: 150px;
+  height: 150px;
+  background: rgba(20, 24, 32, 0.45);
+  border: 1px solid rgba(255, 100, 110, 0.35);
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+#joystick-knob {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 30, 50, 0.45);
+  border: 1px solid rgba(255, 150, 160, 0.7);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 18px rgba(255, 30, 50, 0.4);
+  transition: background 0.1s ease;
+}
+
+#block-btn {
+  position: absolute;
+  bottom: 44px;
+  right: 44px;
+  width: 120px;
+  height: 120px;
+  background: rgba(20, 24, 32, 0.55);
+  border: 2px solid rgba(255, 100, 110, 0.55);
+  border-radius: 50%;
+  color: #f4f1ea;
+  font-size: 13px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  font-weight: 600;
+  pointer-events: auto;
+  touch-action: none;
+  font-family: inherit;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: transform 0.08s ease, background 0.08s ease;
+}
+#block-btn.active {
+  background: rgba(255, 30, 50, 0.55);
+  transform: scale(1.06);
+  box-shadow: 0 0 22px rgba(255, 30, 50, 0.6);
+}
+
+/* On touch devices, level grid wraps for portrait fits and uses bigger tap targets. */
+@media (pointer: coarse) {
+  #level-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .level-btn {
+    min-width: 84px;
+    padding: 10px 8px;
+  }
+  .lvl-name { font-size: 8px; }
+  /* Hide the menu's mute hint since the button is always visible. */
+  #mute-indicator { display: none; }
+}

@@ -1695,32 +1695,34 @@ function buildCreature(kind: CreatureKind): THREE.Group {
       break;
     }
     case 'crocodile': {
-      const green = mat(0x4a6028);
+      // Brighter green so it reads against dark swamp ground.
+      const green = mat(0x6a9038);
       const dark = mat(0x1a2810);
       const white = mat(0xeae0c8);
-      // Long low body
-      box(g, 2.2, 0.35, 0.55, green, 0, 0.25, 0);
+      const eyeGlow = mat(0xffe060, { emissive: 0xffaa20, emissiveIntensity: 1.4 });
+      // Long low body — bigger so it reads at distance.
+      box(g, 2.6, 0.45, 0.7, green, 0, 0.30, 0);
       // Snout
-      box(g, 0.7, 0.25, 0.4, green, 1.35, 0.25, 0);
-      // Bumpy back ridges
-      for (let i = 0; i < 5; i++) {
-        const r = box(g, 0.18, 0.10, 0.18, dark, -0.5 + i * 0.3, 0.45, 0);
+      box(g, 0.85, 0.32, 0.5, green, 1.65, 0.30, 0);
+      // Bumpy back ridges (taller, more visible)
+      for (let i = 0; i < 6; i++) {
+        const r = box(g, 0.22, 0.18, 0.22, dark, -0.6 + i * 0.3, 0.55, 0);
         r.rotation.y = Math.PI / 4;
       }
-      // Teeth (tiny white squares along the snout)
-      for (let i = 0; i < 4; i++) {
-        box(g, 0.05, 0.06, 0.04, white, 1.1 + i * 0.18, 0.1, -0.16);
-        box(g, 0.05, 0.06, 0.04, white, 1.1 + i * 0.18, 0.1, 0.16);
+      // Teeth (visible white row along snout)
+      for (let i = 0; i < 5; i++) {
+        box(g, 0.06, 0.10, 0.05, white, 1.30 + i * 0.18, 0.10, -0.20);
+        box(g, 0.06, 0.10, 0.05, white, 1.30 + i * 0.18, 0.10, 0.20);
       }
-      // Eyes (raised)
-      sph(g, 0.06, dark, 1.0, 0.42, -0.18);
-      sph(g, 0.06, dark, 1.0, 0.42, 0.18);
+      // Eyes — glowing yellow so the croc reads in murky swamp light.
+      sph(g, 0.09, eyeGlow, 1.20, 0.55, -0.22);
+      sph(g, 0.09, eyeGlow, 1.20, 0.55, 0.22);
       // Stubby legs (4)
-      for (const [x, z] of [[-0.6, -0.32], [-0.6, 0.32], [0.4, -0.32], [0.4, 0.32]]) {
-        box(g, 0.14, 0.18, 0.14, green, x, 0.09, z);
+      for (const [x, z] of [[-0.7, -0.40], [-0.7, 0.40], [0.5, -0.40], [0.5, 0.40]]) {
+        box(g, 0.16, 0.22, 0.16, green, x, 0.11, z);
       }
       // Tail (tapered, swept)
-      const tail = cone(g, 0.18, 1.2, green, -1.4, 0.25, 0, 6);
+      const tail = cone(g, 0.22, 1.5, green, -1.7, 0.30, 0, 6);
       tail.rotation.z = Math.PI / 2;
       break;
     }
@@ -2237,8 +2239,9 @@ function buildArena(cfg: LevelConfig) {
     arenaMeshes.push(ring);
   }
 
-  // Boundary wall — chest-high cylinder around the play area.
-  const wallH = 1.25;
+  // Boundary wall — knee-high cylinder around the play area, low so creatures
+  // (crocodiles, serpents) behind the wall stay visible.
+  const wallH = 0.5;
   const wall = new THREE.Mesh(
     new THREE.CylinderGeometry(WALL_R, WALL_R, wallH, 64, 1, true),
     new THREE.MeshStandardMaterial({

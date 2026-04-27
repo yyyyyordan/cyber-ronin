@@ -188,11 +188,35 @@ canvas {
   text-transform: uppercase;
   margin-top: -10px;
 }
-#level-grid {
+#level-grid,
+.stage-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 10px;
   margin-top: 6px;
+}
+
+#stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 6px;
+}
+.stage-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.stage-name {
+  font-size: 14px;
+  letter-spacing: 0.40em;
+  color: rgba(255, 130, 140, 0.92);
+  text-shadow: 0 0 14px rgba(255, 30, 50, 0.45), 0 1px 6px rgba(0, 0, 0, 0.7);
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 4px 18px;
+  border-bottom: 1px solid rgba(255, 100, 110, 0.25);
 }
 .level-btn {
   display: flex;
@@ -369,7 +393,8 @@ canvas {
 
 /* On touch devices, level grid wraps for portrait fits and uses bigger tap targets. */
 @media (pointer: coarse) {
-  #level-grid {
+  #level-grid,
+  .stage-grid {
     grid-template-columns: repeat(5, 1fr);
     gap: 8px;
   }

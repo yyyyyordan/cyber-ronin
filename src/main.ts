@@ -1215,7 +1215,11 @@ type LevelConfig = {
   bossParryWindow: number;
 };
 
-const LEVELS: LevelConfig[] = [
+type StageConfig = { name: string; levels: LevelConfig[] };
+
+const STAGES: StageConfig[] = [{
+  name: 'Epic Cosmos',
+  levels: [
   // 1. Training Dojo — peaceful daylight
   {
     name: 'Training Dojo',
@@ -1356,7 +1360,26 @@ const LEVELS: LevelConfig[] = [
     bossSashColor: 0xffffff,
     bossHp: 220, bossDmg: 50, bossWindup: 0.40, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.15,
   },
-];
+  ],
+}];
+
+// Flat list of all levels across all stages. Existing currentLevel is the global index here.
+const LEVELS: LevelConfig[] = STAGES.flatMap((s) => s.levels);
+
+// Helper: which stage does a global level index belong to?
+function stageOfLevel(idx: number): { stage: StageConfig; localIdx: number; stageIdx: number } {
+  let consumed = 0;
+  for (let s = 0; s < STAGES.length; s++) {
+    const stage = STAGES[s];
+    if (idx < consumed + stage.levels.length) {
+      return { stage, localIdx: idx - consumed, stageIdx: s };
+    }
+    consumed += stage.levels.length;
+  }
+  // Fallback: last stage, last level.
+  const lastStage = STAGES[STAGES.length - 1];
+  return { stage: lastStage, localIdx: lastStage.levels.length - 1, stageIdx: STAGES.length - 1 };
+}
 
 // Persisted current level (1-indexed visually, 0-indexed here).
 let currentLevel = (() => {
@@ -1707,7 +1730,8 @@ function updateHUD() {
 }
 
 function setHUDForLevel() {
-  lvlTag.textContent = `LV ${currentLevel + 1}/${LEVELS.length}`;
+  const { stage, localIdx } = stageOfLevel(currentLevel);
+  lvlTag.textContent = `${stage.name.toUpperCase()} · LV ${localIdx + 1}/${stage.levels.length}`;
   lvlName.textContent = `· ${LEVELS[currentLevel].name}`;
 }
 
@@ -2120,7 +2144,7 @@ function buildMainMenu() {
     <div id="menu">
       <div id="menu-title">CYBER-RONIN</div>
       <div id="menu-sub">Choose your arena</div>
-      <div id="level-grid"></div>
+      <div id="stage-list"></div>
       <div id="menu-footer">
         <span class="keys">WASD</span> move &nbsp;·&nbsp; <span class="keys">LMB</span> swing &nbsp;·&nbsp; <span class="keys">RMB</span> block / tap to parry &nbsp;·&nbsp; <span class="keys">ESC</span> release &nbsp;·&nbsp; <span class="keys">M</span> mute<br/>
         Or click anywhere outside a level to resume current
@@ -2128,38 +2152,47 @@ function buildMainMenu() {
       </div>
     </div>
   `;
-  const grid = promptEl.querySelector('#level-grid')!;
-  LEVELS.forEach((cfg, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'level-btn' + (i === currentLevel ? ' current' : '');
-    btn.innerHTML = `<span class="lvl-num">${i + 1}</span><span class="lvl-name">${cfg.name}</span>`;
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Mark this as current.
-      grid.querySelectorAll('.level-btn').forEach((b) => b.classList.remove('current'));
-      btn.classList.add('current');
-      // Start cosmic ambient on first user gesture (browser autoplay rule).
-      music.init();
-      // Switch arena + reset combat + start.
-      applyLevel(i);
-      resetPlayerCombatState();
-      gameState = 'playing';
-      resultEl.classList.add('hidden');
-      // Pointer lock only on desktop; on touch devices just hide the prompt.
-      if (touchMode) {
-        promptEl.classList.add('hidden');
-      } else {
-        controls.lock();
-      }
+  const stageList = promptEl.querySelector('#stage-list')!;
+  let globalIdx = 0;
+  STAGES.forEach((stage) => {
+    const section = document.createElement('div');
+    section.className = 'stage-section';
+    section.innerHTML = `
+      <div class="stage-name">${stage.name}</div>
+      <div class="stage-grid"></div>
+    `;
+    const grid = section.querySelector('.stage-grid')!;
+    stage.levels.forEach((cfg) => {
+      const i = globalIdx++;
+      const btn = document.createElement('button');
+      btn.className = 'level-btn' + (i === currentLevel ? ' current' : '');
+      btn.innerHTML = `<span class="lvl-num">${i + 1}</span><span class="lvl-name">${cfg.name}</span>`;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        promptEl.querySelectorAll('.level-btn').forEach((b) => b.classList.remove('current'));
+        btn.classList.add('current');
+        // Start cosmic ambient on first user gesture (browser autoplay rule).
+        music.init();
+        applyLevel(i);
+        resetPlayerCombatState();
+        gameState = 'playing';
+        resultEl.classList.add('hidden');
+        if (touchMode) {
+          promptEl.classList.add('hidden');
+        } else {
+          controls.lock();
+        }
+      });
+      grid.appendChild(btn);
     });
-    grid.appendChild(btn);
+    stageList.appendChild(section);
   });
 }
 
 function refreshMenuHighlight() {
-  const grid = promptEl.querySelector('#level-grid');
-  if (!grid) return;
-  grid.querySelectorAll('.level-btn').forEach((b, i) => {
+  const buttons = promptEl.querySelectorAll('.level-btn');
+  if (!buttons.length) return;
+  buttons.forEach((b, i) => {
     b.classList.toggle('current', i === currentLevel);
   });
 }

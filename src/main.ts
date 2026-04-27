@@ -1251,6 +1251,8 @@ type LevelConfig = {
   bossWindup: number;
   bossAttackEvery: [number, number];
   bossParryWindow: number;
+  // Optional themed creatures placed around the arena perimeter (scenery, outside the wall).
+  creatures?: { kind: CreatureKind; count: number }[];
 };
 
 type StageConfig = { name: string; levels: LevelConfig[] };
@@ -1415,6 +1417,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['leaves'], showStars: false, showSkyline: false,
       bossSashColor: 0x60c040,
       bossHp: 230, bossDmg: 48, bossWindup: 0.42, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.15,
+      creatures: [{ kind: 'panda', count: 4 }],
     },
     // 2. Savanna Plains — golden, dusty embers
     {
@@ -1429,6 +1432,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['embers'], showStars: false, showSkyline: false,
       bossSashColor: 0xf0a040,
       bossHp: 250, bossDmg: 50, bossWindup: 0.40, bossAttackEvery: [1.1, 1.5], bossParryWindow: 0.145,
+      creatures: [{ kind: 'lion', count: 3 }],
     },
     // 3. Misty Rainforest — dense fog, fireflies
     {
@@ -1443,6 +1447,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['fireflies', 'leaves'], showStars: false, showSkyline: false,
       bossSashColor: 0x60c060,
       bossHp: 270, bossDmg: 52, bossWindup: 0.38, bossAttackEvery: [1.0, 1.4], bossParryWindow: 0.14,
+      creatures: [{ kind: 'monkey', count: 5 }],
     },
     // 4. Tigers Den — orange jungle, embers
     {
@@ -1457,6 +1462,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['embers'], showStars: false, showSkyline: false,
       bossSashColor: 0xff7030,
       bossHp: 290, bossDmg: 55, bossWindup: 0.36, bossAttackEvery: [1.0, 1.4], bossParryWindow: 0.135,
+      creatures: [{ kind: 'tiger', count: 4 }],
     },
     // 5. Elephant Graveyard — bone pillars, ash + spirit motes
     {
@@ -1471,6 +1477,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['ash', 'glowMotes'], showStars: false, showSkyline: false,
       bossSashColor: 0xe0c8d8,
       bossHp: 310, bossDmg: 58, bossWindup: 0.34, bossAttackEvery: [0.95, 1.35], bossParryWindow: 0.13,
+      creatures: [{ kind: 'elephant', count: 3 }],
     },
     // 6. Crocodile Swamp — murky green, bubbles
     {
@@ -1485,6 +1492,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['bubbles', 'fireflies'], showStars: false, showSkyline: false,
       bossSashColor: 0x80c040,
       bossHp: 335, bossDmg: 60, bossWindup: 0.32, bossAttackEvery: [0.9, 1.3], bossParryWindow: 0.125,
+      creatures: [{ kind: 'crocodile', count: 5 }],
     },
     // 7. Serpent Temple — ancient stone, snake-eye glow
     {
@@ -1499,6 +1507,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['glowMotes', 'fireflies'], showStars: false, showSkyline: false,
       bossSashColor: 0x40ff60,
       bossHp: 360, bossDmg: 62, bossWindup: 0.30, bossAttackEvery: [0.9, 1.3], bossParryWindow: 0.12,
+      creatures: [{ kind: 'serpent', count: 4 }],
     },
     // 8. Wolf Forest — moonlit pines, snow + mist
     {
@@ -1513,6 +1522,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['snow'], showStars: true, showSkyline: false,
       bossSashColor: 0x80c0ff,
       bossHp: 385, bossDmg: 65, bossWindup: 0.28, bossAttackEvery: [0.85, 1.25], bossParryWindow: 0.115,
+      creatures: [{ kind: 'wolf', count: 5 }],
     },
     // 9. Phoenix Volcano — fierce fire, embers + ash
     {
@@ -1527,6 +1537,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['embers', 'ash'], showStars: false, showSkyline: false,
       bossSashColor: 0xff8030,
       bossHp: 415, bossDmg: 68, bossWindup: 0.26, bossAttackEvery: [0.85, 1.25], bossParryWindow: 0.11,
+      creatures: [{ kind: 'phoenix', count: 2 }],
     },
     // 10. Dragon Peak — final, mountain summit, lightning
     {
@@ -1541,6 +1552,7 @@ const STAGES: StageConfig[] = [{
       atmosphere: ['snow', 'glowMotes'], showStars: true, showSkyline: false,
       bossSashColor: 0xc0a0ff,
       bossHp: 450, bossDmg: 72, bossWindup: 0.24, bossAttackEvery: [0.8, 1.2], bossParryWindow: 0.10,
+      creatures: [{ kind: 'dragon', count: 1 }],
     },
   ],
 }];
@@ -1580,6 +1592,384 @@ function saveLevel() {
 
 // Arena meshes (cleared between levels).
 let arenaMeshes: THREE.Object3D[] = [];
+
+// ============================================================
+// ---------- Procedural creatures (wilderness scenery) ----------
+// ============================================================
+type CreatureKind =
+  | 'tiger' | 'elephant' | 'crocodile' | 'serpent' | 'wolf'
+  | 'phoenix' | 'dragon' | 'panda' | 'lion' | 'monkey';
+
+function mat(color: number, opts: Partial<THREE.MeshStandardMaterialParameters> = {}) {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.7, ...opts });
+}
+function box(parent: THREE.Group, w: number, h: number, d: number, m: THREE.Material, x = 0, y = 0, z = 0) {
+  const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  me.position.set(x, y, z);
+  me.castShadow = true;
+  parent.add(me);
+  return me;
+}
+function cyl(parent: THREE.Group, rt: number, rb: number, h: number, m: THREE.Material, x = 0, y = 0, z = 0) {
+  const me = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 10), m);
+  me.position.set(x, y, z);
+  me.castShadow = true;
+  parent.add(me);
+  return me;
+}
+function sph(parent: THREE.Group, r: number, m: THREE.Material, x = 0, y = 0, z = 0) {
+  const me = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), m);
+  me.position.set(x, y, z);
+  me.castShadow = true;
+  parent.add(me);
+  return me;
+}
+function cone(parent: THREE.Group, r: number, h: number, m: THREE.Material, x = 0, y = 0, z = 0, segs = 8) {
+  const me = new THREE.Mesh(new THREE.ConeGeometry(r, h, segs), m);
+  me.position.set(x, y, z);
+  me.castShadow = true;
+  parent.add(me);
+  return me;
+}
+
+function buildCreature(kind: CreatureKind): THREE.Group {
+  const g = new THREE.Group();
+  switch (kind) {
+    case 'tiger': {
+      const body = mat(0xc87028);
+      const dark = mat(0x180a04);
+      const white = mat(0xefe5d0);
+      box(g, 1.6, 0.55, 0.65, body, 0, 0.65, 0);          // body
+      // dark stripes (vertical)
+      for (let i = 0; i < 6; i++) {
+        box(g, 0.06, 0.56, 0.66, dark, -0.7 + i * 0.28, 0.65, 0);
+      }
+      const head = box(g, 0.55, 0.5, 0.55, body, 0.95, 0.78, 0);
+      cone(g, 0.10, 0.18, body, 0.95, 1.08, -0.18, 4);    // ears
+      cone(g, 0.10, 0.18, body, 0.95, 1.08, 0.18, 4);
+      sph(g, 0.04, dark, 1.20, 0.85, -0.13);              // eyes
+      sph(g, 0.04, dark, 1.20, 0.85, 0.13);
+      sph(g, 0.06, white, 1.25, 0.70, 0);                 // muzzle
+      void head;
+      // legs
+      for (const [x, z] of [[-0.55, -0.22], [-0.55, 0.22], [0.55, -0.22], [0.55, 0.22]]) {
+        box(g, 0.16, 0.45, 0.16, body, x, 0.22, z);
+      }
+      // tail (curved up)
+      const t1 = cyl(g, 0.07, 0.07, 0.5, body, -0.95, 0.75, 0);
+      t1.rotation.z = Math.PI / 3;
+      break;
+    }
+    case 'elephant': {
+      // Skeletal — bone white, big tusks
+      const bone = mat(0xe8dcc8);
+      // Skull-like body
+      box(g, 1.8, 0.9, 0.9, bone, 0, 0.95, 0);
+      box(g, 0.7, 0.8, 0.8, bone, 1.05, 0.95, 0);          // head
+      // Tusks
+      const tuskL = cone(g, 0.06, 0.7, bone, 1.45, 0.85, -0.25, 8);
+      tuskL.rotation.z = -Math.PI / 2.2;
+      const tuskR = cone(g, 0.06, 0.7, bone, 1.45, 0.85, 0.25, 8);
+      tuskR.rotation.z = -Math.PI / 2.2;
+      // Trunk
+      const trunk = cyl(g, 0.10, 0.18, 0.6, bone, 1.5, 0.65, 0);
+      trunk.rotation.z = Math.PI / 2;
+      // Big legs (4)
+      for (const [x, z] of [[-0.7, -0.35], [-0.7, 0.35], [0.5, -0.35], [0.5, 0.35]]) {
+        cyl(g, 0.18, 0.18, 0.95, bone, x, 0.475, z);
+      }
+      // Ears
+      box(g, 0.05, 0.5, 0.5, bone, 0.95, 1.1, -0.55);
+      box(g, 0.05, 0.5, 0.5, bone, 0.95, 1.1, 0.55);
+      break;
+    }
+    case 'crocodile': {
+      const green = mat(0x4a6028);
+      const dark = mat(0x1a2810);
+      const white = mat(0xeae0c8);
+      // Long low body
+      box(g, 2.2, 0.35, 0.55, green, 0, 0.25, 0);
+      // Snout
+      box(g, 0.7, 0.25, 0.4, green, 1.35, 0.25, 0);
+      // Bumpy back ridges
+      for (let i = 0; i < 5; i++) {
+        const r = box(g, 0.18, 0.10, 0.18, dark, -0.5 + i * 0.3, 0.45, 0);
+        r.rotation.y = Math.PI / 4;
+      }
+      // Teeth (tiny white squares along the snout)
+      for (let i = 0; i < 4; i++) {
+        box(g, 0.05, 0.06, 0.04, white, 1.1 + i * 0.18, 0.1, -0.16);
+        box(g, 0.05, 0.06, 0.04, white, 1.1 + i * 0.18, 0.1, 0.16);
+      }
+      // Eyes (raised)
+      sph(g, 0.06, dark, 1.0, 0.42, -0.18);
+      sph(g, 0.06, dark, 1.0, 0.42, 0.18);
+      // Stubby legs (4)
+      for (const [x, z] of [[-0.6, -0.32], [-0.6, 0.32], [0.4, -0.32], [0.4, 0.32]]) {
+        box(g, 0.14, 0.18, 0.14, green, x, 0.09, z);
+      }
+      // Tail (tapered, swept)
+      const tail = cone(g, 0.18, 1.2, green, -1.4, 0.25, 0, 6);
+      tail.rotation.z = Math.PI / 2;
+      break;
+    }
+    case 'serpent': {
+      const green = mat(0x40a050);
+      const dark = mat(0x102810);
+      // Coiled body — chain of decreasing-size spheres
+      const segs = 10;
+      let radius = 0.85;
+      for (let i = 0; i < segs; i++) {
+        const t = i / segs;
+        const r = 0.30 - t * 0.15;
+        const a = t * Math.PI * 1.6;
+        const x = Math.cos(a) * radius;
+        const z = Math.sin(a) * radius;
+        sph(g, r, green, x, 0.3 + t * 0.2, z);
+        radius *= 0.92;
+      }
+      // Head (raised, larger)
+      const head = sph(g, 0.32, green, 0.2, 1.4, 0.25);
+      sph(g, 0.05, dark, 0.45, 1.5, 0.10);   // eyes
+      sph(g, 0.05, dark, 0.45, 1.5, 0.40);
+      // Forked tongue
+      const tongue = box(g, 0.18, 0.02, 0.04, mat(0xc02040), 0.55, 1.4, 0.25);
+      void head; void tongue;
+      break;
+    }
+    case 'wolf': {
+      const grey = mat(0x6a6e74);
+      const dark = mat(0x202428);
+      const white = mat(0xc0c4c8);
+      // Body
+      box(g, 1.3, 0.5, 0.5, grey, 0, 0.7, 0);
+      // Head (more pointed than tiger)
+      box(g, 0.45, 0.42, 0.42, grey, 0.78, 0.85, 0);
+      // Snout
+      box(g, 0.30, 0.20, 0.28, grey, 1.05, 0.78, 0);
+      // Ears (pointy)
+      cone(g, 0.08, 0.20, grey, 0.78, 1.15, -0.16, 4);
+      cone(g, 0.08, 0.20, grey, 0.78, 1.15, 0.16, 4);
+      // Eyes (yellow, glowing slightly)
+      sph(g, 0.04, mat(0xffd060, { emissive: 0xff9020, emissiveIntensity: 0.8 }), 1.05, 0.92, -0.13);
+      sph(g, 0.04, mat(0xffd060, { emissive: 0xff9020, emissiveIntensity: 0.8 }), 1.05, 0.92, 0.13);
+      // Belly (lighter)
+      box(g, 1.1, 0.25, 0.5, white, 0, 0.5, 0);
+      // Long legs
+      for (const [x, z] of [[-0.45, -0.18], [-0.45, 0.18], [0.45, -0.18], [0.45, 0.18]]) {
+        box(g, 0.13, 0.5, 0.13, dark, x, 0.25, z);
+      }
+      // Bushy tail
+      const tail = cyl(g, 0.10, 0.05, 0.55, grey, -0.75, 0.85, 0);
+      tail.rotation.z = -Math.PI / 5;
+      break;
+    }
+    case 'phoenix': {
+      // Large fiery bird, perched
+      const flame = mat(0xff4020, { emissive: 0xff5020, emissiveIntensity: 1.0 });
+      const gold = mat(0xffa830, { emissive: 0xff8020, emissiveIntensity: 0.6 });
+      const dark = mat(0x180404);
+      // Body
+      sph(g, 0.45, flame, 0, 1.4, 0);
+      // Head
+      sph(g, 0.22, gold, 0, 1.85, 0.1);
+      // Beak
+      cone(g, 0.06, 0.18, mat(0xffd060), 0, 1.85, 0.30, 4);
+      // Eyes
+      sph(g, 0.04, dark, -0.10, 1.92, 0.20);
+      sph(g, 0.04, dark, 0.10, 1.92, 0.20);
+      // Wings (large, spread)
+      const wL = box(g, 0.05, 1.2, 0.7, flame, -0.45, 1.45, -0.05);
+      wL.rotation.z = -0.4;
+      const wR = box(g, 0.05, 1.2, 0.7, flame, 0.45, 1.45, -0.05);
+      wR.rotation.z = 0.4;
+      // Tail feathers (fanning out behind, golden)
+      for (let i = -2; i <= 2; i++) {
+        const f = box(g, 0.05, 0.85, 0.10, gold, 0, 1.4, -0.5);
+        f.rotation.x = -0.3;
+        f.rotation.z = i * 0.18;
+      }
+      // Legs
+      cyl(g, 0.04, 0.04, 0.6, dark, -0.10, 0.7, 0);
+      cyl(g, 0.04, 0.04, 0.6, dark, 0.10, 0.7, 0);
+      // Crown plume on head (golden)
+      cone(g, 0.05, 0.25, gold, 0, 2.18, -0.05, 4);
+      break;
+    }
+    case 'dragon': {
+      // Large purple-black dragon — wings spread, head raised
+      const scale = mat(0x2a1838, { metalness: 0.4 });
+      const glow = mat(0x180838, { emissive: 0xc0a0ff, emissiveIntensity: 1.6 });
+      const dark = mat(0x080004);
+      // Body (long box)
+      box(g, 2.4, 0.8, 1.0, scale, 0, 1.4, 0);
+      // Neck (raised, segments)
+      box(g, 0.45, 0.5, 0.5, scale, 1.4, 1.7, 0);
+      box(g, 0.4, 0.45, 0.45, scale, 1.85, 2.05, 0);
+      // Head
+      box(g, 0.6, 0.5, 0.6, scale, 2.25, 2.4, 0);
+      // Snout
+      box(g, 0.4, 0.3, 0.4, scale, 2.65, 2.30, 0);
+      // Glowing eyes
+      sph(g, 0.07, glow, 2.45, 2.5, -0.22);
+      sph(g, 0.07, glow, 2.45, 2.5, 0.22);
+      // Horns (curved up)
+      const hL = cone(g, 0.10, 0.55, dark, 2.20, 2.78, -0.22, 6);
+      hL.rotation.x = -0.4;
+      const hR = cone(g, 0.10, 0.55, dark, 2.20, 2.78, 0.22, 6);
+      hR.rotation.x = -0.4;
+      // Wings (very large, spread)
+      const wL = box(g, 0.06, 2.2, 1.4, scale, -0.4, 2.0, -0.3);
+      wL.rotation.z = -0.3;
+      wL.rotation.y = 0.2;
+      const wR = box(g, 0.06, 2.2, 1.4, scale, 0.4, 2.0, -0.3);
+      wR.rotation.z = 0.3;
+      wR.rotation.y = -0.2;
+      // Wing membranes (glowing edges)
+      const mL = box(g, 0.03, 2.0, 0.05, glow, -0.4, 2.0, 0.4);
+      mL.rotation.z = -0.3;
+      const mR = box(g, 0.03, 2.0, 0.05, glow, 0.4, 2.0, 0.4);
+      mR.rotation.z = 0.3;
+      // Legs (4 chunky)
+      for (const [x, z] of [[-0.8, -0.4], [-0.8, 0.4], [0.7, -0.4], [0.7, 0.4]]) {
+        cyl(g, 0.18, 0.22, 1.2, scale, x, 0.6, z);
+      }
+      // Tail (long, tapered)
+      for (let i = 0; i < 5; i++) {
+        const r = 0.35 - i * 0.05;
+        cyl(g, r, r * 0.85, 0.5, scale, -1.2 - i * 0.45, 1.4 - i * 0.15, 0);
+      }
+      // Spinal ridge (glowing crystals along the back)
+      for (let i = 0; i < 6; i++) {
+        cone(g, 0.10, 0.30, glow, -0.9 + i * 0.4, 1.95, 0, 4);
+      }
+      break;
+    }
+    case 'panda': {
+      const white = mat(0xf0eee8);
+      const black = mat(0x141414);
+      // Body
+      sph(g, 0.55, white, 0, 0.6, 0);
+      // Head
+      sph(g, 0.42, white, 0, 1.25, 0.05);
+      // Eye patches
+      sph(g, 0.13, black, -0.18, 1.32, 0.32);
+      sph(g, 0.13, black, 0.18, 1.32, 0.32);
+      // Eyes
+      sph(g, 0.04, white, -0.18, 1.34, 0.42);
+      sph(g, 0.04, white, 0.18, 1.34, 0.42);
+      // Nose
+      sph(g, 0.06, black, 0, 1.18, 0.45);
+      // Ears (round + black)
+      sph(g, 0.13, black, -0.30, 1.55, 0);
+      sph(g, 0.13, black, 0.30, 1.55, 0);
+      // Limbs (black)
+      for (const [x, z] of [[-0.35, -0.25], [-0.35, 0.25], [0.35, -0.25], [0.35, 0.25]]) {
+        sph(g, 0.18, black, x, 0.25, z);
+      }
+      // Shoulder bands (black)
+      box(g, 0.95, 0.18, 0.50, black, 0, 0.85, 0);
+      break;
+    }
+    case 'lion': {
+      const sand = mat(0xc89858);
+      const mane = mat(0x6a3818);
+      const dark = mat(0x180a04);
+      // Body
+      box(g, 1.5, 0.55, 0.6, sand, 0, 0.65, 0);
+      // Head
+      sph(g, 0.34, sand, 0.85, 0.85, 0);
+      // Big shaggy mane (multiple overlapping spheres)
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        sph(g, 0.32, mane, 0.85 + Math.cos(a) * 0.18, 0.85 + Math.sin(a) * 0.18, 0);
+        sph(g, 0.32, mane, 0.85 + Math.cos(a) * 0.18, 0.85, Math.sin(a) * 0.22);
+      }
+      // Re-add face after mane
+      sph(g, 0.30, sand, 1.05, 0.85, 0);
+      // Eyes
+      sph(g, 0.04, dark, 1.18, 0.92, -0.13);
+      sph(g, 0.04, dark, 1.18, 0.92, 0.13);
+      // Nose
+      sph(g, 0.06, dark, 1.30, 0.80, 0);
+      // Legs
+      for (const [x, z] of [[-0.50, -0.22], [-0.50, 0.22], [0.50, -0.22], [0.50, 0.22]]) {
+        box(g, 0.16, 0.45, 0.16, sand, x, 0.22, z);
+      }
+      // Tail with a tuft at the end
+      const tail = cyl(g, 0.06, 0.06, 0.6, sand, -0.85, 0.7, 0);
+      tail.rotation.z = Math.PI / 2.5;
+      sph(g, 0.10, mane, -1.15, 0.45, 0);
+      break;
+    }
+    case 'monkey': {
+      const brown = mat(0x6a4830);
+      const skin = mat(0xc8a080);
+      const dark = mat(0x180a04);
+      // Body
+      sph(g, 0.30, brown, 0, 0.85, 0);
+      // Head
+      sph(g, 0.25, brown, 0, 1.30, 0.05);
+      // Face
+      sph(g, 0.18, skin, 0, 1.30, 0.18);
+      // Eyes
+      sph(g, 0.04, dark, -0.08, 1.35, 0.30);
+      sph(g, 0.04, dark, 0.08, 1.35, 0.30);
+      // Nose
+      sph(g, 0.04, dark, 0, 1.27, 0.34);
+      // Ears
+      sph(g, 0.07, brown, -0.25, 1.32, 0);
+      sph(g, 0.07, brown, 0.25, 1.32, 0);
+      // Limbs (long arms hanging)
+      const aL = cyl(g, 0.07, 0.07, 0.55, brown, -0.35, 0.85, 0);
+      aL.rotation.z = 0.3;
+      const aR = cyl(g, 0.07, 0.07, 0.55, brown, 0.35, 0.85, 0);
+      aR.rotation.z = -0.3;
+      // Hands
+      sph(g, 0.10, skin, -0.55, 0.55, 0);
+      sph(g, 0.10, skin, 0.55, 0.55, 0);
+      // Legs
+      cyl(g, 0.07, 0.07, 0.45, brown, -0.15, 0.4, 0);
+      cyl(g, 0.07, 0.07, 0.45, brown, 0.15, 0.4, 0);
+      // Curled tail (3 segments)
+      const t1 = cyl(g, 0.05, 0.05, 0.4, brown, -0.20, 0.85, -0.2);
+      t1.rotation.x = 0.5;
+      const t2 = cyl(g, 0.045, 0.045, 0.35, brown, -0.20, 1.05, -0.5);
+      t2.rotation.x = 1.2;
+      const t3 = cyl(g, 0.04, 0.04, 0.30, brown, -0.20, 1.30, -0.55);
+      t3.rotation.x = 2.0;
+      void t1; void t2; void t3;
+      break;
+    }
+  }
+  return g;
+}
+
+function placeCreatures(kinds: { kind: CreatureKind; count: number }[]) {
+  const placed: THREE.Group[] = [];
+  let total = 0;
+  for (const k of kinds) total += k.count;
+  let idx = 0;
+  for (const { kind, count } of kinds) {
+    for (let i = 0; i < count; i++) {
+      const angle = (idx / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+      idx++;
+      const r = 14 + Math.random() * 7;
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+      const c = buildCreature(kind);
+      c.position.set(x, 0, z);
+      // Face roughly toward arena center (with a little randomness).
+      c.rotation.y = Math.atan2(-x, -z) + (Math.random() - 0.5) * 0.6;
+      // Random uniform scale for variety.
+      const s = 0.85 + Math.random() * 0.35;
+      c.scale.setScalar(s);
+      scene.add(c);
+      placed.push(c);
+    }
+  }
+  return placed;
+}
 
 // Procedural grid texture (for arenas that use a grid).
 function makeGridTexture(line: number, lineW: number, bg: number, size = 1024, cell = 64) {
@@ -1812,6 +2202,12 @@ function buildArena(cfg: LevelConfig) {
 
   // Stars.
   if (cfg.showStars) ensureStars();
+
+  // Themed creatures placed around the arena perimeter (decorative, outside wall).
+  if (cfg.creatures && cfg.creatures.length > 0) {
+    const placed = placeCreatures(cfg.creatures);
+    for (const c of placed) arenaMeshes.push(c);
+  }
 
   // Planets + moons (visible in the sky for selected arenas).
   if (cfg.atmosphere.includes('celestials')) {

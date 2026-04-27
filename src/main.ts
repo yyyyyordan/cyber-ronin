@@ -2115,11 +2115,62 @@ const wrappedApplyLevel = (idx: number) => {
   wrappedApplyLevel(Math.max(0, Math.min(LEVELS.length - 1, n)));
 
 // ============================================================
-// ---------- Touch controls (iPad / mobile) ----------
+// ---------- Touch controls (iPad / mobile) — Pointer Events
 // ============================================================
 const touchMode = ('ontouchstart' in window) || (navigator.maxTouchPoints ?? 0) > 0;
 const joyState = { dx: 0, dy: 0, active: false, id: -1 };
 const JOY_MAX = 55;
+
+// Always wire look-by-drag on the canvas for non-mouse pointers (touch + pen).
+// This works regardless of touchMode detection — fixes iPad "Desktop Site" quirks.
+{
+  const canvas = renderer.domElement;
+  // Make sure the canvas has rotation order set up for free-look.
+  camera.rotation.order = 'YXZ';
+
+  type LookPtr = { lastX: number; lastY: number; startX: number; startY: number; startTime: number };
+  const looks = new Map<number, LookPtr>();
+
+  canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (e.pointerType === 'mouse') return;     // desktop uses pointer-lock for look
+    if (gameState !== 'playing') return;
+    canvas.setPointerCapture(e.pointerId);
+    looks.set(e.pointerId, {
+      lastX: e.clientX, lastY: e.clientY,
+      startX: e.clientX, startY: e.clientY,
+      startTime: nowSec(),
+    });
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', (e: PointerEvent) => {
+    const l = looks.get(e.pointerId);
+    if (!l) return;
+    const dx = e.clientX - l.lastX;
+    const dy = e.clientY - l.lastY;
+    l.lastX = e.clientX;
+    l.lastY = e.clientY;
+    const sens = 0.005;
+    camera.rotation.y -= dx * sens;
+    camera.rotation.x -= dy * sens;
+    camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
+    e.preventDefault();
+  });
+  const endLook = (e: PointerEvent) => {
+    const l = looks.get(e.pointerId);
+    if (!l) return;
+    const dt = nowSec() - l.startTime;
+    const moveDist = Math.hypot(l.lastX - l.startX, l.lastY - l.startY);
+    if (dt < 0.25 && moveDist < 14 && gameState === 'playing') {
+      if (swingTime < 0) {
+        swingTime = 0;
+        swingDidHit = false;
+      }
+    }
+    looks.delete(e.pointerId);
+  };
+  canvas.addEventListener('pointerup', endLook);
+  canvas.addEventListener('pointercancel', endLook);
+}
 
 if (touchMode) {
   // Build touch UI.
@@ -2140,133 +2191,60 @@ if (touchMode) {
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   };
 
-  joyBase.addEventListener('touchstart', (e: TouchEvent) => {
-    e.preventDefault();
+  joyBase.addEventListener('pointerdown', (e: PointerEvent) => {
     e.stopPropagation();
-    if (joyState.id === -1) {
-      const t = e.changedTouches[0];
-      joyState.id = t.identifier;
-      joyState.active = true;
-      const c = joyCenter();
-      const dx = t.clientX - c.x, dy = t.clientY - c.y;
-      const d = Math.hypot(dx, dy);
-      const f = d > JOY_MAX ? JOY_MAX / d : 1;
-      joyState.dx = dx * f;
-      joyState.dy = dy * f;
-      joyKnob.style.transform = `translate(calc(-50% + ${joyState.dx}px), calc(-50% + ${joyState.dy}px))`;
-    }
-  }, { passive: false });
-  joyBase.addEventListener('touchmove', (e: TouchEvent) => {
+    if (joyState.id !== -1) return;
+    joyBase.setPointerCapture(e.pointerId);
+    joyState.id = e.pointerId;
+    joyState.active = true;
+    const c = joyCenter();
+    let dx = e.clientX - c.x, dy = e.clientY - c.y;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_MAX) { dx *= JOY_MAX / d; dy *= JOY_MAX / d; }
+    joyState.dx = dx; joyState.dy = dy;
+    joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     e.preventDefault();
-    e.stopPropagation();
-    for (const t of Array.from(e.changedTouches)) {
-      if (t.identifier !== joyState.id) continue;
-      const c = joyCenter();
-      let dx = t.clientX - c.x, dy = t.clientY - c.y;
-      const d = Math.hypot(dx, dy);
-      if (d > JOY_MAX) { dx *= JOY_MAX / d; dy *= JOY_MAX / d; }
-      joyState.dx = dx;
-      joyState.dy = dy;
-      joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-    }
-  }, { passive: false });
-  const joyEnd = (e: TouchEvent) => {
+  });
+  joyBase.addEventListener('pointermove', (e: PointerEvent) => {
+    if (e.pointerId !== joyState.id) return;
+    const c = joyCenter();
+    let dx = e.clientX - c.x, dy = e.clientY - c.y;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_MAX) { dx *= JOY_MAX / d; dy *= JOY_MAX / d; }
+    joyState.dx = dx; joyState.dy = dy;
+    joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     e.preventDefault();
-    e.stopPropagation();
-    for (const t of Array.from(e.changedTouches)) {
-      if (t.identifier === joyState.id) {
-        joyState.id = -1;
-        joyState.active = false;
-        joyState.dx = 0;
-        joyState.dy = 0;
-        joyKnob.style.transform = 'translate(-50%, -50%)';
-      }
-    }
+  });
+  const joyEnd = (e: PointerEvent) => {
+    if (e.pointerId !== joyState.id) return;
+    joyState.id = -1;
+    joyState.active = false;
+    joyState.dx = 0; joyState.dy = 0;
+    joyKnob.style.transform = 'translate(-50%, -50%)';
   };
-  joyBase.addEventListener('touchend', joyEnd, { passive: false });
-  joyBase.addEventListener('touchcancel', joyEnd, { passive: false });
+  joyBase.addEventListener('pointerup', joyEnd);
+  joyBase.addEventListener('pointercancel', joyEnd);
 
   // BLOCK / parry button.
-  let blockTouchId = -1;
-  blockBtn.addEventListener('touchstart', (e: TouchEvent) => {
-    e.preventDefault();
+  let blockPtrId = -1;
+  blockBtn.addEventListener('pointerdown', (e: PointerEvent) => {
     e.stopPropagation();
     if (gameState !== 'playing') return;
-    blockTouchId = e.changedTouches[0].identifier;
+    blockBtn.setPointerCapture(e.pointerId);
+    blockPtrId = e.pointerId;
     blocking = true;
     parryReadyUntil = nowSec() + LEVELS[currentLevel].bossParryWindow;
     blockBtn.classList.add('active');
-  }, { passive: false });
-  const blockEnd = (e: TouchEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    for (const t of Array.from(e.changedTouches)) {
-      if (t.identifier === blockTouchId) {
-        blockTouchId = -1;
-        blocking = false;
-        blockBtn.classList.remove('active');
-      }
-    }
+  });
+  const blockEnd = (e: PointerEvent) => {
+    if (e.pointerId !== blockPtrId) return;
+    blockPtrId = -1;
+    blocking = false;
+    blockBtn.classList.remove('active');
   };
-  blockBtn.addEventListener('touchend', blockEnd, { passive: false });
-  blockBtn.addEventListener('touchcancel', blockEnd, { passive: false });
-
-  // Look-by-drag + tap-to-swing on the rest of the screen.
-  type LookTouch = { lastX: number; lastY: number; startX: number; startY: number; startTime: number };
-  const lookTouches = new Map<number, LookTouch>();
-  const isUITarget = (target: EventTarget | null) => {
-    const el = target as HTMLElement | null;
-    if (!el) return false;
-    return !!(el.closest('#touch-controls') || el.closest('button') || el.closest('#prompt') || el.closest('#sound-btn') || el.closest('#menu-btn'));
-  };
-  document.addEventListener('touchstart', (e: TouchEvent) => {
-    if (gameState !== 'playing') return;
-    if (isUITarget(e.target)) return;
-    for (const t of Array.from(e.changedTouches)) {
-      lookTouches.set(t.identifier, {
-        lastX: t.clientX, lastY: t.clientY,
-        startX: t.clientX, startY: t.clientY,
-        startTime: nowSec(),
-      });
-    }
-    e.preventDefault();
-  }, { passive: false });
-  document.addEventListener('touchmove', (e: TouchEvent) => {
-    if (gameState !== 'playing') return;
-    let consumed = false;
-    for (const t of Array.from(e.changedTouches)) {
-      const l = lookTouches.get(t.identifier);
-      if (!l) continue;
-      consumed = true;
-      const dx = t.clientX - l.lastX;
-      const dy = t.clientY - l.lastY;
-      l.lastX = t.clientX;
-      l.lastY = t.clientY;
-      const sens = 0.005;
-      camera.rotation.order = 'YXZ';
-      camera.rotation.y -= dx * sens;
-      camera.rotation.x -= dy * sens;
-      camera.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, camera.rotation.x));
-    }
-    if (consumed) e.preventDefault();
-  }, { passive: false });
-  const lookEnd = (e: TouchEvent) => {
-    for (const t of Array.from(e.changedTouches)) {
-      const l = lookTouches.get(t.identifier);
-      if (!l) continue;
-      const dt = nowSec() - l.startTime;
-      const moveDist = Math.hypot(l.lastX - l.startX, l.lastY - l.startY);
-      if (dt < 0.25 && moveDist < 14 && gameState === 'playing') {
-        if (swingTime < 0) {
-          swingTime = 0;
-          swingDidHit = false;
-        }
-      }
-      lookTouches.delete(t.identifier);
-    }
-  };
-  document.addEventListener('touchend', lookEnd, { passive: false });
-  document.addEventListener('touchcancel', lookEnd, { passive: false });
+  blockBtn.addEventListener('pointerup', blockEnd);
+  blockBtn.addEventListener('pointercancel', blockEnd);
 }
 
 // ---------- Init ----------

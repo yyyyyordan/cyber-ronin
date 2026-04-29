@@ -787,25 +787,40 @@ function snapshotPose(h: Humanoid): Pose {
   };
 }
 
+// Cyber-ronin idle — arm extended FORWARD with the sword presented at the player
+// (same arm-forward stance as the beast holds the leg).
 const POSE_IDLE: Pose = pose({
-  rShoulder: [-0.55, 0, -0.18], rElbow: [-1.1, 0, 0], rHand: [0.3, 0, 0.2],
-  lShoulder: [0, 0, 0.2], lElbow: [-0.5, 0, 0],
+  rShoulder: [-1.30, 0.10, -0.20],     // arm extended forward
+  rElbow: [-0.30, 0, 0],                // mostly straight
+  rHand: [0.40, 0, 0.20],               // wrist tilted so sword angles forward-up
+  lShoulder: [0.10, 0, 0.25],
+  lElbow: [-0.50, 0, 0],
   rHip: [0, 0, -0.04], lHip: [0, 0, 0.04],
-  rKnee: [0.15, 0, 0], lKnee: [0.15, 0, 0],
+  rKnee: [0.20, 0, 0], lKnee: [0.20, 0, 0],
 });
+// Cyber-ronin attack — OVERHEAD BASH (same direction as the beast: wind UP-BACK,
+// strike DOWN-FORWARD). Replaces the old diagonal slash that read as backward.
 const POSE_WINDUP: Pose = pose({
-  spine: [0, -0.4, 0], neck: [0, -0.2, 0],
-  rShoulder: [2.6, 0, -0.4], rElbow: [-0.7, 0, 0], rHand: [0.5, 0, 0.1],
-  lShoulder: [-0.4, 0, 0.5], lElbow: [-1.1, 0, 0],
+  spine: [-0.10, -0.35, 0],             // twist body back, slight lean back
+  neck: [-0.20, -0.20, 0],
+  rShoulder: [2.40, 0.20, -0.40],       // arm raised UP and BACK over shoulder
+  rElbow: [-0.50, 0, 0],
+  rHand: [0.20, 0, 0],                  // sword cocked vertically up
+  lShoulder: [-0.40, 0, 0.50],          // left arm forward as counterweight
+  lElbow: [-1.10, 0, 0],
   rHip: [-0.15, 0, -0.04], lHip: [-0.15, 0, 0.04],
-  rKnee: [0.35, 0, 0], lKnee: [0.35, 0, 0],
+  rKnee: [0.40, 0, 0], lKnee: [0.40, 0, 0],
 });
 const POSE_STRIKE: Pose = pose({
-  spine: [0, 0.4, 0], neck: [0, 0.15, 0],
-  rShoulder: [-0.3, 0.7, 1.4], rElbow: [-0.2, 0, 0], rHand: [0.1, 0, -0.2],
-  lShoulder: [0.3, 0, 0.4], lElbow: [-0.7, 0, 0],
-  rHip: [-0.2, 0, -0.04], lHip: [-0.2, 0, 0.04],
-  rKnee: [0.4, 0, 0], lKnee: [0.4, 0, 0],
+  spine: [0.20, 0.40, 0],               // untwist hard, lean FORWARD into strike
+  neck: [0.25, 0.15, 0],
+  rShoulder: [-0.50, 0.50, 0.50],       // arm sweeps DOWN-FORWARD-ACROSS at player
+  rElbow: [-0.20, 0, 0],                // forearm extended at impact
+  rHand: [1.40, 0, -0.10],              // wrist whips down so sword slams forward-down
+  lShoulder: [0.40, 0, 0.40],           // left arm swings back as counterweight
+  lElbow: [-0.50, 0, 0],
+  rHip: [-0.20, 0, -0.04], lHip: [-0.20, 0, 0.04],
+  rKnee: [0.40, 0, 0], lKnee: [0.40, 0, 0],
 });
 const POSE_STAGGER: Pose = pose({
   spine: [0.3, 0, 0.1], neck: [0.4, 0, 0],

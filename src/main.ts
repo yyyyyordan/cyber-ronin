@@ -814,6 +814,22 @@ const POSE_STAGGER: Pose = pose({
   rHip: [0.1, 0, -0.04], lHip: [0.1, 0, 0.04],
   rKnee: [0.5, 0, 0], lKnee: [0.5, 0, 0],
 });
+// Beast idle — arm extended FORWARD with the bloody leg held out horizontally
+// pointing at the player (wrist tilted down so the thigh leads).
+const POSE_BEAST_IDLE: Pose = pose({
+  spine: [0, 0, 0],
+  neck: [0, 0, 0],
+  rShoulder: [-1.30, 0.10, -0.20],
+  rElbow: [-0.20, 0, 0],
+  rHand: [1.40, 0, 0],
+  lShoulder: [0.10, 0, 0.25],
+  lElbow: [-0.50, 0, 0],
+  rHip: [0, 0, -0.04],
+  lHip: [0, 0, 0.04],
+  rKnee: [0.20, 0, 0],
+  lKnee: [0.20, 0, 0],
+});
+
 // Beast attack — UPPERCUT motion (opposite of cyber-ronin's overhead chop).
 // Wind-up pulls the leg-club LOW + BACK, then strike swings it UP + FORWARD
 // driving the heavy bloody thigh up into the player.
@@ -938,7 +954,7 @@ function rebuildBoss(stageIdx: number) {
   }
   bossH.root.position.set(0, 0, 0);
   scene.add(bossH.root);
-  applyPose(bossH, POSE_IDLE);
+  applyPose(bossH, stageIdx === 1 ? POSE_BEAST_IDLE : POSE_IDLE);
 
   // Rebind the runtime boss references.
   boss.humanoid = bossH;
@@ -2839,8 +2855,9 @@ function resetBossForLevel() {
   bossH.root.position.set(0, 0, 0);
   bossH.root.rotation.set(0, 0, 0);
   bossWalkPhase = 0;
-  poseFrom = POSE_IDLE;
-  applyPose(bossH, POSE_IDLE);
+  const idleForStage = currentBossStageIdx === 1 ? POSE_BEAST_IDLE : POSE_IDLE;
+  poseFrom = idleForStage;
+  applyPose(bossH, idleForStage);
   boss.swordBladeMat.emissive.setRGB(0, 0, 0);
   for (const p of boss.parts) {
     (p.material as THREE.MeshStandardMaterial).emissive.setRGB(0, 0, 0);
@@ -3095,7 +3112,8 @@ function updateBoss(dt: number) {
   switch (boss.state) {
     case 'idle': {
       const t = Math.min(1, boss.stateTime / 0.4);
-      applyPoseLerp(bossH, poseFrom, POSE_IDLE, easeOutCubic(t));
+      const targetIdle = currentBossStageIdx === 1 ? POSE_BEAST_IDLE : POSE_IDLE;
+      applyPoseLerp(bossH, poseFrom, targetIdle, easeOutCubic(t));
       // Walk toward player if too far. Apply gait overlay on top of IDLE pose.
       const moving = updateBossLocomotion(dt);
       if (moving) applyWalkOverlay(bossH, bossWalkPhase, 1.0);
@@ -3110,7 +3128,11 @@ function updateBoss(dt: number) {
         boss.longRecover = false;
         transitionBoss('windup');
       }
-      boss.swordBladeMat.emissive.lerp(new THREE.Color(0.0, 0.55, 0.22), Math.min(1, 6 * dt));
+      // Idle: lerp weapon emissive toward stage baseline (cosmos green / wilderness blood red).
+      const idleEmissive = currentBossStageIdx === 1
+        ? new THREE.Color(0.30, 0.04, 0.04)
+        : new THREE.Color(0.0, 0.55, 0.22);
+      boss.swordBladeMat.emissive.lerp(idleEmissive, Math.min(1, 6 * dt));
       break;
     }
     case 'windup': {
@@ -3119,8 +3141,12 @@ function updateBoss(dt: number) {
       const w = easeOutCubic(t);
       const targetWindup = currentBossStageIdx === 1 ? POSE_BEAST_WINDUP : POSE_WINDUP;
       applyPoseLerp(bossH, poseFrom, targetWindup, w);
-      // Windup: ramp from base green up to a brighter green flare.
-      boss.swordBladeMat.emissive.setRGB(0.0, 0.55 + w * 1.0, 0.22 + w * 0.5);
+      // Windup: ramp baseline up to a brighter flare (per-stage color).
+      if (currentBossStageIdx === 1) {
+        boss.swordBladeMat.emissive.setRGB(0.30 + w * 1.20, 0.04 + w * 0.05, 0.04 + w * 0.05);
+      } else {
+        boss.swordBladeMat.emissive.setRGB(0.0, 0.55 + w * 1.0, 0.22 + w * 0.5);
+      }
       if (t >= 1) transitionBoss('strike');
       break;
     }
@@ -3134,9 +3160,13 @@ function updateBoss(dt: number) {
         resolveBossStrike();
         boss.attackResolved = true;
       }
-      // Strike: flash bright green and decay back to the base glow.
+      // Strike: flash bright then decay back to the baseline glow (per-stage color).
       const glow = 1 - t;
-      boss.swordBladeMat.emissive.setRGB(0.0, 0.55 + glow * 1.0, 0.22 + glow * 0.5);
+      if (currentBossStageIdx === 1) {
+        boss.swordBladeMat.emissive.setRGB(0.30 + glow * 1.20, 0.04 + glow * 0.05, 0.04 + glow * 0.05);
+      } else {
+        boss.swordBladeMat.emissive.setRGB(0.0, 0.55 + glow * 1.0, 0.22 + glow * 0.5);
+      }
       if (t >= 1) transitionBoss('recover');
       break;
     }
@@ -3144,8 +3174,12 @@ function updateBoss(dt: number) {
       const RECOVER_DUR = boss.longRecover ? 1.0 : 0.55;
       const t = Math.min(1, boss.stateTime / RECOVER_DUR);
       const e = easeOutCubic(t);
-      applyPoseLerp(bossH, poseFrom, POSE_IDLE, e);
-      boss.swordBladeMat.emissive.lerp(new THREE.Color(0.0, 0.55, 0.22), Math.min(1, 6 * dt));
+      const targetIdle = currentBossStageIdx === 1 ? POSE_BEAST_IDLE : POSE_IDLE;
+      applyPoseLerp(bossH, poseFrom, targetIdle, e);
+      const recoverEmissive = currentBossStageIdx === 1
+        ? new THREE.Color(0.30, 0.04, 0.04)
+        : new THREE.Color(0.0, 0.55, 0.22);
+      boss.swordBladeMat.emissive.lerp(recoverEmissive, Math.min(1, 6 * dt));
       if (t >= 1) {
         const r = cfg.bossAttackEvery;
         boss.nextAttackAt = r[0] + Math.random() * (r[1] - r[0]);

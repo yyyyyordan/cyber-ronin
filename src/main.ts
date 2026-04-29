@@ -830,34 +830,33 @@ const POSE_BEAST_IDLE: Pose = pose({
   lKnee: [0.20, 0, 0],
 });
 
-// Beast attack — UPPERCUT motion (opposite of cyber-ronin's overhead chop).
-// Wind-up pulls the leg-club LOW + BACK, then strike swings it UP + FORWARD
-// driving the heavy bloody thigh up into the player.
+// Beast attack — OVERHEAD BASH. Wind-up raises the leg-club UP and BACK
+// over the shoulder, then strike SLAMS it DOWN and FORWARD at the player.
 const POSE_BEAST_WINDUP: Pose = pose({
-  spine: [0.05, 0.35, 0],            // slight twist + slight forward lean
-  neck: [-0.15, 0.20, 0],
-  rShoulder: [0.85, -0.25, -0.10],   // arm pulled DOWN and slightly BACK
-  rElbow: [-1.40, 0, 0],             // forearm tucked in tight to load the swing
-  rHand: [-0.40, 0, 0],
-  lShoulder: [-0.30, 0, 0.40],       // left arm comes forward as counterweight
-  lElbow: [-1.00, 0, 0],
-  rHip: [-0.20, 0, -0.04],
-  lHip: [-0.20, 0, 0.04],
-  rKnee: [0.45, 0, 0],
-  lKnee: [0.45, 0, 0],
-});
-const POSE_BEAST_STRIKE: Pose = pose({
-  spine: [-0.10, -0.30, 0],          // untwist + lean BACK as the swing throws
-  neck: [0.10, -0.10, 0],
-  rShoulder: [-2.30, 0.30, -0.20],   // arm whipped UP through FORWARD into overhead
-  rElbow: [-0.20, 0, 0],             // forearm fully extended at the apex
-  rHand: [0.50, 0, 0.10],
-  lShoulder: [0.40, 0, 0.40],        // left arm swings back as counterweight
-  lElbow: [-0.50, 0, 0],
+  spine: [-0.10, -0.35, 0],           // twist body back, slight lean back
+  neck: [-0.20, -0.20, 0],
+  rShoulder: [2.40, 0.20, -0.40],     // arm raised UP and BACK over the shoulder
+  rElbow: [-0.50, 0, 0],              // slight bend so leg cocks past the shoulder
+  rHand: [0.20, 0, 0],                // wrist neutral; leg points straight up
+  lShoulder: [-0.40, 0, 0.50],        // left arm comes forward as counterweight
+  lElbow: [-1.10, 0, 0],
   rHip: [-0.15, 0, -0.04],
   lHip: [-0.15, 0, 0.04],
-  rKnee: [0.30, 0, 0],
-  lKnee: [0.30, 0, 0],
+  rKnee: [0.40, 0, 0],
+  lKnee: [0.40, 0, 0],
+});
+const POSE_BEAST_STRIKE: Pose = pose({
+  spine: [0.20, 0.40, 0],             // untwist hard, lean FORWARD into the strike
+  neck: [0.25, 0.15, 0],
+  rShoulder: [-0.50, 0.50, 0.50],     // arm sweeps DOWN-FORWARD-ACROSS at the player
+  rElbow: [-0.20, 0, 0],              // forearm extended at the impact
+  rHand: [1.40, 0, -0.10],            // wrist whips down so the leg slams forward-down
+  lShoulder: [0.40, 0, 0.40],         // left arm swings back as counterweight
+  lElbow: [-0.50, 0, 0],
+  rHip: [-0.20, 0, -0.04],
+  lHip: [-0.20, 0, 0.04],
+  rKnee: [0.40, 0, 0],
+  lKnee: [0.40, 0, 0],
 });
 
 const POSE_DEATH: Pose = pose({

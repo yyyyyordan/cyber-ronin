@@ -391,6 +391,34 @@ canvas {
   box-shadow: 0 0 22px rgba(255, 30, 50, 0.6);
 }
 
+#dodge-btn {
+  position: absolute;
+  bottom: 188px;             /* sits just above the BLOCK button */
+  right: 64px;
+  width: 86px;
+  height: 86px;
+  background: rgba(20, 24, 32, 0.55);
+  border: 2px solid rgba(160, 216, 255, 0.55);
+  border-radius: 50%;
+  color: #f4f1ea;
+  font-size: 11px;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  font-weight: 600;
+  pointer-events: auto;
+  touch-action: none;
+  font-family: inherit;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: transform 0.08s ease, background 0.08s ease, box-shadow 0.12s ease;
+}
+#dodge-btn.active {
+  background: rgba(160, 216, 255, 0.45);
+  transform: scale(1.10);
+  box-shadow: 0 0 22px rgba(160, 216, 255, 0.65);
+}
+
 /* On touch devices, level grid wraps for portrait fits and uses bigger tap targets. */
 @media (pointer: coarse) {
   #level-grid,

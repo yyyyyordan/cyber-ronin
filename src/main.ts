@@ -1596,6 +1596,10 @@ addEventListener('keydown', (e) => {
   if (gameState === 'lost' && e.code === 'KeyR') retryLevel();
   else if (gameState === 'won-level' && e.code === 'Space') advanceLevel();
   else if (gameState === 'won-game' && e.code === 'KeyR') startNewRun();
+  else if (gameState === 'playing' && e.code === 'Space') {
+    triggerDodge();
+    e.preventDefault();   // stop the browser from scrolling the page
+  }
   if (e.code === 'KeyM') {
     const muted = music.toggleMute();
     syncSoundUI(muted);
@@ -1610,6 +1614,67 @@ let blocking = false;
 let parryReadyUntil = 0;
 let hitstopUntil = 0;
 let damageVignetteUntil = 0;
+
+// ---- Dodge ----
+// A short burst of movement with brief invulnerability + cooldown. If the
+// player has WASD/joystick input, dodge in that direction; otherwise dodge
+// straight backward. While iframes are active, boss strikes pass through
+// for zero damage and award a small posture punish to the boss.
+const DODGE_DUR = 0.32;          // total dodge motion length (s)
+const DODGE_IFRAME_DUR = 0.24;   // invulnerability window (s)
+const DODGE_CD = 0.55;           // cooldown after dodge starts (s)
+const DODGE_SPEED = 16;          // peak burst speed (m/s)
+let dodgeStart = -1;             // performance.now()/1000 when dodge began (-1 = idle)
+let dodgeUntil = 0;
+let dodgeIframeUntil = 0;
+let dodgeCooldownUntil = 0;
+const dodgeWorldDir = new THREE.Vector3();
+const _camForward = new THREE.Vector3();
+const _camRight = new THREE.Vector3();
+const _worldUp = new THREE.Vector3(0, 1, 0);
+
+function triggerDodge() {
+  if (gameState !== 'playing') return;
+  const now = nowSec();
+  if (now < dodgeCooldownUntil) return;
+  // Resolve input direction in camera-local space (-z forward, +x right).
+  let ix = 0, iz = 0;
+  if (touchMode && joyState.active) {
+    ix = joyState.dx / JOY_MAX;
+    iz = joyState.dy / JOY_MAX;
+  } else {
+    if (keys['KeyW']) iz -= 1;
+    if (keys['KeyS']) iz += 1;
+    if (keys['KeyA']) ix -= 1;
+    if (keys['KeyD']) ix += 1;
+  }
+  const len = Math.hypot(ix, iz);
+  if (len < 0.05) {
+    // No input → dodge backward (away from where camera looks).
+    ix = 0; iz = 1;
+  } else {
+    ix /= len; iz /= len;
+  }
+  // Camera forward/right on the horizontal plane.
+  camera.getWorldDirection(_camForward);
+  _camForward.y = 0;
+  if (_camForward.lengthSq() < 1e-6) _camForward.set(0, 0, -1);
+  _camForward.normalize();
+  _camRight.crossVectors(_camForward, _worldUp).normalize();
+  // input.z is "forward" in camera space (negative = forward in WASD), so
+  // world direction = -iz * forward + ix * right.
+  dodgeWorldDir.set(0, 0, 0)
+    .addScaledVector(_camForward, -iz)
+    .addScaledVector(_camRight, ix);
+  if (dodgeWorldDir.lengthSq() < 1e-6) dodgeWorldDir.copy(_camForward).multiplyScalar(-1);
+  dodgeWorldDir.normalize();
+  // Cancel any swing-in-progress so the player can read the dodge.
+  swingTime = -1;
+  dodgeStart = now;
+  dodgeUntil = now + DODGE_DUR;
+  dodgeIframeUntil = now + DODGE_IFRAME_DUR;
+  dodgeCooldownUntil = now + DODGE_CD;
+}
 
 addEventListener('mousedown', (e) => {
   if (!controls.isLocked || gameState !== 'playing') return;
@@ -2887,6 +2952,10 @@ function resetPlayerCombatState() {
   parryReadyUntil = 0;
   hitstopUntil = 0;
   damageVignetteUntil = 0;
+  dodgeStart = -1;
+  dodgeUntil = 0;
+  dodgeIframeUntil = 0;
+  dodgeCooldownUntil = 0;
 }
 
 function retryLevel() {
@@ -2942,6 +3011,35 @@ function updateMovement(dt: number) {
   if (gameState !== 'playing') return;
   // Allow movement on touch even without pointer-lock; on desktop require lock.
   if (!touchMode && !controls.isLocked) return;
+
+  // ---- Dodge burst overrides normal WASD motion ----
+  const now = nowSec();
+  if (dodgeStart >= 0 && now < dodgeUntil) {
+    const p = (now - dodgeStart) / DODGE_DUR;       // 0 → 1
+    // Speed envelope: peak right at the start, decay to zero by the end.
+    const env = Math.max(0, 1 - p * p);
+    const v = DODGE_SPEED * env;
+    // Move directly in world coords (camera rotation during dodge does not
+    // change where we are sliding to).
+    camera.position.x += dodgeWorldDir.x * v * dt;
+    camera.position.z += dodgeWorldDir.z * v * dt;
+    // Bleed regular velocity so the dodge feels punchy, not floaty.
+    velocity.x *= Math.pow(0.001, dt);
+    velocity.z *= Math.pow(0.001, dt);
+    // Arena clamp.
+    const px = camera.position.x, pz = camera.position.z;
+    const pd = Math.hypot(px, pz);
+    if (pd > ARENA_R) {
+      const f = ARENA_R / pd;
+      camera.position.x = px * f;
+      camera.position.z = pz * f;
+    }
+    bobPhase += v * dt * 0.6;
+    return;
+  }
+  // Clear the marker once the dodge motion finishes (iframes already expired).
+  if (dodgeStart >= 0 && now >= dodgeUntil) dodgeStart = -1;
+
   const accel = 60, damping = 10, maxSpeed = 5.2;
   moveDir.set(0, 0, 0);
   if (touchMode && joyState.active) {
@@ -3240,6 +3338,16 @@ function resolveBossStrike() {
   const dz = camera.position.z - bossH.root.position.z;
   const dist = Math.hypot(dx, dz);
   if (dist > 2.7) return;
+  // ---- Dodge iframes win first: zero damage, small posture punish on the boss.
+  if (nowSec() < dodgeIframeUntil) {
+    const tipPos = new THREE.Vector3();
+    boss.swordBlade.getWorldPosition(tipPos);
+    spawnSparks(tipPos, 14, 0xa0d8ff, 5);   // cool-blue "swish" sparks
+    boss.posture = Math.min(boss.maxPosture, boss.posture + 12);
+    hitstopUntil = nowSec() + 0.05;
+    if (boss.posture >= boss.maxPosture) enterStagger();
+    return;
+  }
   const isParry = nowSec() < parryReadyUntil;
   if (isParry) {
     const tipPos = new THREE.Vector3();
@@ -3278,7 +3386,7 @@ function buildMainMenu() {
       <div id="menu-sub">Choose your arena</div>
       <div id="stage-list"></div>
       <div id="menu-footer">
-        <span class="keys">WASD</span> move &nbsp;·&nbsp; <span class="keys">LMB</span> swing &nbsp;·&nbsp; <span class="keys">RMB</span> block / tap to parry &nbsp;·&nbsp; <span class="keys">ESC</span> release &nbsp;·&nbsp; <span class="keys">M</span> mute<br/>
+        <span class="keys">WASD</span> move &nbsp;·&nbsp; <span class="keys">LMB</span> swing &nbsp;·&nbsp; <span class="keys">RMB</span> block / tap to parry &nbsp;·&nbsp; <span class="keys">SPACE</span> dodge &nbsp;·&nbsp; <span class="keys">ESC</span> release &nbsp;·&nbsp; <span class="keys">M</span> mute<br/>
         Or click anywhere outside a level to resume current
         <div id="mute-indicator" style="margin-top:6px;opacity:0.5">MUSIC: ON</div>
       </div>
@@ -3403,12 +3511,14 @@ if (touchMode) {
   tc.classList.add('active');
   tc.innerHTML = `
     <div id="joystick-base"><div id="joystick-knob"></div></div>
+    <button id="dodge-btn" type="button">DODGE</button>
     <button id="block-btn" type="button">BLOCK</button>
   `;
   document.body.appendChild(tc);
   const joyBase = document.getElementById('joystick-base')!;
   const joyKnob = document.getElementById('joystick-knob')!;
   const blockBtn = document.getElementById('block-btn')!;
+  const dodgeBtn = document.getElementById('dodge-btn')!;
 
   const joyCenter = () => {
     const r = joyBase.getBoundingClientRect();
@@ -3469,6 +3579,19 @@ if (touchMode) {
   };
   blockBtn.addEventListener('pointerup', blockEnd);
   blockBtn.addEventListener('pointercancel', blockEnd);
+
+  // DODGE button — quick burst with iframes. Reads the current joystick
+  // direction; if the stick is centered, dodges backward.
+  dodgeBtn.addEventListener('pointerdown', (e: PointerEvent) => {
+    e.stopPropagation();
+    if (gameState !== 'playing') return;
+    triggerDodge();
+    dodgeBtn.classList.add('active');
+    e.preventDefault();
+  });
+  const dodgeRelease = () => dodgeBtn.classList.remove('active');
+  dodgeBtn.addEventListener('pointerup', dodgeRelease);
+  dodgeBtn.addEventListener('pointercancel', dodgeRelease);
 }
 
 // ---------- Init ----------

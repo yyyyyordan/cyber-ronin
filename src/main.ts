@@ -420,20 +420,50 @@ function buildCyberRonin(): Humanoid {
 }
 
 // ============================================================
+// ---------- PolyHaven PBR texture helpers (used by the beast) ----------
+// ============================================================
+const _texLoader = new THREE.TextureLoader();
+const _texCache = new Map<string, THREE.Texture>();
+function phTex(asset: string, map: 'diff' | 'nor_gl' | 'rough', repeat = 1, anis = 4): THREE.Texture {
+  const key = `${asset}|${map}|${repeat}`;
+  const cached = _texCache.get(key);
+  if (cached) return cached;
+  const t = _texLoader.load(`textures/${asset}_${map}_1k.jpg`);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeat, repeat);
+  if (map === 'diff') t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = anis;
+  _texCache.set(key, t);
+  return t;
+}
+function phMat(asset: string, opts: {
+  color?: number; repeat?: number;
+  roughness?: number; metalness?: number;
+  emissive?: number; emissiveIntensity?: number;
+} = {}): THREE.MeshStandardMaterial {
+  const r = opts.repeat ?? 1;
+  return new THREE.MeshStandardMaterial({
+    color: opts.color ?? 0xffffff,
+    map: phTex(asset, 'diff', r),
+    normalMap: phTex(asset, 'nor_gl', r),
+    roughnessMap: phTex(asset, 'rough', r),
+    roughness: opts.roughness ?? 1.0,
+    metalness: opts.metalness ?? 0.0,
+    emissive: new THREE.Color(opts.emissive ?? 0x000000),
+    emissiveIntensity: opts.emissiveIntensity ?? 0,
+  });
+}
+
+// ============================================================
 // ---------- Wild Beast (Wilderness boss) ----------
 // ============================================================
 function buildWildBeast(): Humanoid {
-  const fur = new THREE.MeshStandardMaterial({
-    color: 0x4a3826, roughness: 0.95,
-  });
-  const furDark = new THREE.MeshStandardMaterial({
-    color: 0x281a10, roughness: 0.95,
-  });
-  const skullMat = new THREE.MeshStandardMaterial({
-    color: 0xd8c0a0, roughness: 0.7,
-  });
+  // PBR-textured materials from PolyHaven (fur, weathered rock, blood-red leather).
+  const fur = phMat('curly_teddy_natural', { color: 0x6a5238, repeat: 2 });
+  const furDark = phMat('curly_teddy_natural', { color: 0x3a2a18, repeat: 2 });
+  const skullMat = phMat('worn_rock_natural_01', { color: 0xd8c0a0, repeat: 1 });
   const fangMat = new THREE.MeshStandardMaterial({
-    color: 0xf0e8d0, roughness: 0.4,
+    color: 0xf0e8d0, roughness: 0.4,    // too small for textures; kept smooth.
   });
   const clawMat = new THREE.MeshStandardMaterial({
     color: 0x141414, roughness: 0.4, metalness: 0.3,
@@ -441,8 +471,9 @@ function buildWildBeast(): Humanoid {
   const eyeMat = new THREE.MeshStandardMaterial({
     color: 0x180000, emissive: 0xff2010, emissiveIntensity: 3.8,
   });
-  const trophyMat = new THREE.MeshStandardMaterial({
-    color: 0x6a0808, roughness: 0.6, emissive: 0x600404, emissiveIntensity: 0.5,
+  const trophyMat = phMat('leather_red_02', {
+    color: 0x6a1414, repeat: 1,
+    emissive: 0x500404, emissiveIntensity: 0.4,
   });
 
   const meshes: THREE.Mesh[] = [];
@@ -520,8 +551,8 @@ function buildWildBeast(): Humanoid {
     neck.add(f);
     meshes.push(f);
   }
-  // Horns (curled back from skull).
-  const hornMat = new THREE.MeshStandardMaterial({ color: 0x100808, roughness: 0.6, metalness: 0.3 });
+  // Horns (curled back from skull) — dark weathered bone.
+  const hornMat = phMat('worn_rock_natural_01', { color: 0x382818, repeat: 0.5 });
   const lHorn = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.40, 6), hornMat);
   lHorn.position.set(0.13, 0.45, -0.05);
   lHorn.rotation.set(0.4, 0, 0.5);
@@ -636,21 +667,22 @@ function buildWildBeast(): Humanoid {
 // ---------- Bloody Leg weapon (Wilderness boss carries this instead of a sword) ----------
 function buildBloodyLeg() {
   const group = new THREE.Group();
-  const fleshMat = new THREE.MeshStandardMaterial({
-    color: 0x8a4030, roughness: 0.85,
+  // PBR-textured: blood-red leather for flesh, weathered rock for bone.
+  const fleshMat = phMat('leather_red_02', {
+    color: 0x9a3828, repeat: 1.5,
     emissive: 0x301010, emissiveIntensity: 0.25,
   });
-  const boneMat = new THREE.MeshStandardMaterial({
-    color: 0xe8e0d0, roughness: 0.6,
-  });
-  const bloodMat = new THREE.MeshStandardMaterial({
-    color: 0x6a0606, roughness: 0.4,
+  const bloodMat = phMat('leather_red_02', {
+    color: 0x7a0606, repeat: 0.6,
     emissive: 0xff1010, emissiveIntensity: 0.55,
   });
+  const boneMat = phMat('worn_rock_natural_01', { color: 0xe8e0d0, repeat: 0.5 });
+  // Foot uses worn brown leather (skin-of-the-foot).
+  const footMat = phMat('brown_leather', { color: 0x6a3828, repeat: 1.0 });
 
   // Held at the foot (down-end). Leg extends UPWARD like a club.
-  // Foot
-  const foot = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.12, 0.34), fleshMat);
+  // Foot — uses brown-leather (skin) instead of red flesh.
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.12, 0.34), footMat);
   foot.position.set(0, 0.06, 0.06);
   foot.castShadow = true;
   // Ankle

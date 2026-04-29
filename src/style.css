@@ -16,6 +16,14 @@ html, body {
 
 canvas {
   display: block;
+  /* iOS Safari quirk: without this the canvas defaults to touch-action: auto,
+     so the browser delays the first tap (double-tap-zoom heuristic) and steals
+     drags for native scroll/pinch — breaking quick-tap-to-swing and
+     drag-to-rotate. Setting "none" hands all gestures to our pointer-event
+     handlers immediately. */
+  touch-action: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 #prompt {

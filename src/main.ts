@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -262,6 +263,9 @@ type Humanoid = {
   meshes: THREE.Mesh[];
   emissiveAccents: THREE.Mesh[];
   faceMesh: THREE.Mesh;
+  // Head decor (face sphere + eye bars + horns) — hidden when a GLB helmet
+  // attaches so the high-poly Blender model takes over without z-fighting.
+  headDecor: THREE.Object3D[];
 };
 
 function buildCyberRonin(): Humanoid {
@@ -345,6 +349,9 @@ function buildCyberRonin(): Humanoid {
   rHorn.castShadow = true;
   neck.add(rHorn); meshes.push(rHorn);
 
+  // Collect head decor so attachGltfHelmet() can hide the procedural pieces.
+  const headDecor: THREE.Object3D[] = [faceMesh, lEye, rEye, lHorn, rHorn];
+
   const rShoulder = new THREE.Group();
   rShoulder.position.set(-0.40, 0.55, 0);
   spine.add(rShoulder);
@@ -415,8 +422,147 @@ function buildCyberRonin(): Humanoid {
     root, pelvis, spine, neck,
     rShoulder, rElbow, rHand, lShoulder, lElbow,
     rHip, rKnee, lHip, lKnee,
-    meshes, emissiveAccents, faceMesh,
+    meshes, emissiveAccents, faceMesh, headDecor,
   };
+}
+
+// ============================================================
+// ---------- Blender GLB assets (cosmos boss helmet + sword) ----------
+// ============================================================
+// Procedurally-modeled in Blender, exported as glTF binary, parented to
+// the existing skeleton joints so all the pose animation still drives them.
+// Loaded once at startup; cached templates are cloned each time we attach.
+type BossWeapon = { group: THREE.Group; blade: THREE.Mesh; bladeMat: THREE.MeshStandardMaterial; bladeLen: number };
+const _gltfLoader = new GLTFLoader();
+// Sword template is checked synchronously before resolving from the promise
+// (so re-spawning the boss after first load doesn't have to wait again).
+let _swordTemplate: THREE.Object3D | null = null;
+
+function _normalizeMaterials(root: THREE.Object3D) {
+  // glTF imports come in as MeshStandardMaterial. Make sure they cast shadows
+  // and the emissive tint survives bloom. Also normalize transparency.
+  root.traverse((c) => {
+    if (c instanceof THREE.Mesh) {
+      c.castShadow = true;
+      c.receiveShadow = false;
+      const m = c.material as THREE.MeshStandardMaterial;
+      if (m && m.emissive && m.emissiveIntensity > 0) {
+        // glTF emissive strength baked in; clamp so bloom isn't blinding.
+        m.emissiveIntensity = Math.min(m.emissiveIntensity, 4.0);
+      }
+    }
+  });
+}
+
+const helmetReady: Promise<THREE.Object3D> = new Promise((resolve, reject) => {
+  _gltfLoader.load(
+    `${import.meta.env.BASE_URL}models/demon_helmet.glb`,
+    (g) => {
+      _normalizeMaterials(g.scene);
+      resolve(g.scene);
+    },
+    undefined,
+    (err) => reject(err),
+  );
+});
+
+const swordReady: Promise<THREE.Object3D> = new Promise((resolve, reject) => {
+  _gltfLoader.load(
+    `${import.meta.env.BASE_URL}models/cosmic_sword.glb`,
+    (g) => {
+      _normalizeMaterials(g.scene);
+      _swordTemplate = g.scene;
+      resolve(g.scene);
+    },
+    undefined,
+    (err) => reject(err),
+  );
+});
+
+// Identify the sword "blade" mesh inside the loaded GLB — the tallest one
+// (cosmic_sword.glb has multiple primitives joined). Cached after first call.
+function _findBladeMesh(root: THREE.Object3D): THREE.Mesh {
+  let best: THREE.Mesh | null = null;
+  let bestSize = -Infinity;
+  root.traverse((c) => {
+    if (c instanceof THREE.Mesh) {
+      c.geometry.computeBoundingBox();
+      const bb = c.geometry.boundingBox!;
+      const h = bb.max.y - bb.min.y;
+      if (h > bestSize) { bestSize = h; best = c; }
+    }
+  });
+  if (!best) throw new Error('GLB has no mesh');
+  return best;
+}
+
+// Attach the demon-helmet GLB to the boss's neck joint, hide procedural head
+// decor on this humanoid. Safe to call before the GLB is loaded — it queues
+// itself onto the helmet promise. Returns immediately.
+function attachGltfHelmet(h: Humanoid) {
+  helmetReady.then((tpl) => {
+    const inst = tpl.clone(true);
+    // Blender +Y forward → glTF -Z. Our cyber-ronin faces +Z, so flip 180°.
+    inst.rotation.y = Math.PI;
+    inst.position.set(0, 0.30, 0.04);   // sit on top of the neck stub
+    inst.scale.setScalar(1.05);
+    h.neck.add(inst);
+    for (const o of h.headDecor) o.visible = false;
+  }).catch((err) => console.warn('helmet GLB load failed:', err));
+}
+
+// Build a BossWeapon that uses the cosmic_sword.glb instead of buildSword().
+// Falls back to a procedural sword if the GLB is still loading.
+function buildGltfCosmicSword(fallback: BossWeapon): BossWeapon {
+  // Wrap fallback so the boss combat code has working refs immediately;
+  // when the GLB lands, swap the visible mesh in place.
+  if (_swordTemplate) {
+    return _wrapGltfSword(_swordTemplate);
+  }
+  // Async swap: keep fallback live, then replace its group children when ready.
+  swordReady.then((tpl) => {
+    const wrapped = _wrapGltfSword(tpl);
+    // Move whatever parent the fallback group is attached to and swap.
+    const parent = fallback.group.parent;
+    if (!parent) return;   // boss got rebuilt before we landed
+    parent.remove(fallback.group);
+    // Dispose fallback geom/mat to free GPU memory.
+    fallback.group.traverse((c) => {
+      if (c instanceof THREE.Mesh) {
+        c.geometry.dispose();
+        const m: any = c.material;
+        if (m) (Array.isArray(m) ? m : [m]).forEach((x: any) => x.dispose?.());
+      }
+    });
+    wrapped.group.position.copy(fallback.group.position);
+    wrapped.group.rotation.copy(fallback.group.rotation);
+    parent.add(wrapped.group);
+    // Update the live boss refs so hit detection + emissive control hit the
+    // new mesh/material on the GLB sword.
+    boss.swordBlade = wrapped.blade;
+    boss.swordBladeMat = wrapped.bladeMat;
+  }).catch((err) => console.warn('sword GLB load failed:', err));
+  return fallback;
+}
+
+function _wrapGltfSword(tpl: THREE.Object3D): BossWeapon {
+  const inst = tpl.clone(true);
+  // Blender export is Z-up internally → +Y after y-up convert. The blade extends
+  // up the +Y axis already, which matches the procedural sword. Just position
+  // the grip at the hand origin (model already centered at grip).
+  inst.scale.setScalar(0.95);
+  const group = new THREE.Group();
+  group.add(inst);
+  const blade = _findBladeMesh(inst);
+  // Clone the blade material so per-instance emissive tweaks (death fade,
+  // posture pulse) don't mutate the cached template.
+  blade.material = (blade.material as THREE.MeshStandardMaterial).clone();
+  const bladeMat = blade.material as THREE.MeshStandardMaterial;
+  // Compute approximate blade length from its bbox (used for tip locator).
+  blade.geometry.computeBoundingBox();
+  const bb = blade.geometry.boundingBox!;
+  const bladeLen = bb.max.y - bb.min.y;
+  return { group, blade, bladeMat, bladeLen };
 }
 
 // ============================================================
@@ -660,7 +806,7 @@ function buildWildBeast(): Humanoid {
     root, pelvis, spine, neck,
     rShoulder, rElbow, rHand, lShoulder, lElbow,
     rHip, rKnee, lHip, lKnee,
-    meshes, emissiveAccents, faceMesh,
+    meshes, emissiveAccents, faceMesh, headDecor: [],
   };
 }
 
@@ -889,8 +1035,8 @@ let bossH: Humanoid = buildCyberRonin();
 bossH.root.position.set(0, 0, 0);
 scene.add(bossH.root);
 applyPose(bossH, POSE_IDLE);
+attachGltfHelmet(bossH);   // demon helmet GLB swaps in once loaded
 
-type BossWeapon = { group: THREE.Group; blade: THREE.Mesh; bladeMat: THREE.MeshStandardMaterial; bladeLen: number };
 let bossWeapon: BossWeapon = buildSword({
   gripColor: 0x18120e, bladeColor: 0x002010,
   bladeLen: 1.10, bladeW: 0.075,
@@ -906,6 +1052,7 @@ let bossWeapon: BossWeapon = buildSword({
 }
 bossWeapon.group.position.set(0, -0.05, 0);
 bossH.rHand.add(bossWeapon.group);
+bossWeapon = buildGltfCosmicSword(bossWeapon);   // swap to GLB greatsword when loaded
 
 const boss = {
   humanoid: bossH,
@@ -952,6 +1099,7 @@ function rebuildBoss(stageIdx: number) {
   } else {
     // Cosmos (and default) — cyber-ronin with the green sword.
     bossH = buildCyberRonin();
+    attachGltfHelmet(bossH);
     bossWeapon = buildSword({
       gripColor: 0x18120e, bladeColor: 0x002010,
       bladeLen: 1.10, bladeW: 0.075,
@@ -965,6 +1113,7 @@ function rebuildBoss(stageIdx: number) {
     m.needsUpdate = true;
     bossWeapon.group.position.set(0, -0.05, 0);
     bossH.rHand.add(bossWeapon.group);
+    bossWeapon = buildGltfCosmicSword(bossWeapon);
   }
   bossH.root.position.set(0, 0, 0);
   scene.add(bossH.root);
